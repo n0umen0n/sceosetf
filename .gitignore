@@ -1,3 +1,7 @@
+# Compilation
+*.abi
+*.wasm
+
 # Prerequisites
 *.d
 
