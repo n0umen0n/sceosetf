@@ -1,6 +1,7 @@
 #include <eosio/eosio.hpp>
 #include <eosio/asset.hpp>
 #include <cmath>
+#include <eosio/singleton.hpp>
 
 //REQUIRE AUTH IGALE POOLE
 using namespace eosio;
@@ -73,6 +74,68 @@ struct [[eosio::table]] refundstab {
 
 
 
+TABLE pausetabla{
+
+  bool ispaused;
+};
+typedef eosio::singleton<"pauze"_n, pausetabla> pausetab;
+
+
+TABLE etfsize{
+
+  uint8_t size;
+};
+typedef eosio::singleton<"etfsize"_n, etfsize> etfsizetab;
+
+
+
+
+[[eosio::action]]
+void delusertok(name user)
+{
+useritokenid input(get_self(), user.value);
+
+for (auto iter = input.begin(); iter != input.end();)
+{
+
+input.erase(iter++);
+
+}
+}
+
+[[eosio::action]]
+void setsize(uint8_t size)
+{
+etfsizetab sizetable(_self, _self.value);
+  etfsize soloiter;
+  if(!sizetable.exists()){
+    sizetable.set(soloiter, _self);
+  }
+  else{
+    soloiter = sizetable.get();
+  }
+  soloiter.size = size;
+  sizetable.set(soloiter, _self);
+}
+
+
+
+[[eosio::action]]
+void pause(bool ispaused)
+{
+pausetab pausetable(_self, _self.value);
+  pausetabla soloiter;
+  if(!pausetable.exists()){
+    pausetable.set(soloiter, _self);
+  }
+  else{
+    soloiter = pausetable.get();
+  }
+  soloiter.ispaused = ispaused;
+  pausetable.set(soloiter, _self);
+}
+
+
 
 
 
@@ -84,7 +147,6 @@ void insertrefund( asset token, name contract )
     auto existing = reftab.find( sym.code().raw() );
     if(existing==reftab.end() ) {
     reftab.emplace( _self, [&]( auto& s ) {
-       //s.supply.symbol = maximum_supply.symbol;
        s.contract    = contract;
        s.token        = token;
     });
@@ -297,6 +359,8 @@ private:
 
     check (quantity.amount >= 10000, "Can't redeem less than 1 EOSETF" );
 
+    pauseornot();
+
     refundstable reftab(get_self(), _self.value);
 
     for (auto iter = reftab.begin(); iter != reftab.end(); iter++)
@@ -399,10 +463,22 @@ void createetf( name owner, asset quantity )
     }
 
 
+void pauseornot( ) {
+
+pausetab pauztab(_self, _self.value);
+pausetabla iter;
+
+iter = pauztab.get();
+
+check(iter.ispaused, "Creation and redemption is currently halted.");
+}
+
 
 void savetokens( name from, asset quantity, name to )
     {
 if (to  != "consortiumtt"_n) return;
+
+pauseornot();
 
    etfinfo sinput(get_self(), _self.value);
       auto secinput = sinput.find( quantity.symbol.code().raw() );
@@ -441,15 +517,21 @@ checkratuus (from);
 void checkratuus( name from )
     {
 
-symbol sym = symbol("EFX", 4);
+symbol symefx = symbol("EFX", 4);
     
 useritokenid input(get_self(), from.value);
 
 auto size = std::distance(input.cbegin(),input.cend());
 
-if (size == 7) {
+etfsizetab sizetable(_self, _self.value);
+etfsize soloiter;
 
-const auto& efxrow = input.find(sym.code().raw() );
+soloiter = sizetable.get();
+
+//ig size is smaller will not issue CETF/EOSETF, just saves the token values in the table. 
+if (size == soloiter.size ) {
+
+const auto& efxrow = input.find(symefx.code().raw() );
 
 for (auto iter = input.begin(); iter != input.end();)
 {
