@@ -88,6 +88,13 @@ TABLE etfsize{
 typedef eosio::singleton<"etfsize"_n, etfsize> etfsizetab;
 
 
+TABLE basetoken{
+
+  symbol base;
+};
+typedef eosio::singleton<"basetoken"_n, basetoken> basetoktab;
+
+
 
 
 [[eosio::action]]
@@ -102,6 +109,25 @@ input.erase(iter++);
 
 }
 }
+
+
+
+[[eosio::action]]
+void setbasetok(symbol base)
+{
+basetoktab basetable(_self, _self.value);
+  basetoken soloiter;
+
+  if(!basetable.exists()){
+    basetable.set(soloiter, _self);
+  }
+  else{
+    soloiter = basetable.get();
+  }
+  soloiter.base = base;
+  basetable.set(soloiter, _self);
+}
+
 
 [[eosio::action]]
 void setsize(uint8_t size)
@@ -334,7 +360,6 @@ savetokens(from, quantity,to);
 
 }
 
-
 [[eosio::on_notify("token.defi::transfer")]]
 void issueetfbox (name from, name to, asset quantity, std::string memo){
      
@@ -342,10 +367,51 @@ void issueetfbox (name from, name to, asset quantity, std::string memo){
 
 }
 
-
-
 [[eosio::on_notify("dadtoken1111::transfer")]]
 void issueetfdad (name from, name to, asset quantity, std::string memo){
+     
+ savetokens(from, quantity,to);
+
+}
+
+[[eosio::on_notify("pizzatotoken::transfer")]]
+void issueetfpizza (name from, name to, asset quantity, std::string memo){
+     
+ savetokens(from, quantity,to);
+
+}
+
+[[eosio::on_notify("chexchexchex::transfer")]]
+void issueetfchex (name from, name to, asset quantity, std::string memo){
+     
+ savetokens(from, quantity,to);
+
+}
+
+
+[[eosio::on_notify("newdexissuer::transfer")]]
+void issueetfndx (name from, name to, asset quantity, std::string memo){
+     
+ savetokens(from, quantity,to);
+
+}
+
+[[eosio::on_notify("eosiotptoken::transfer")]]
+void issueetftpt (name from, name to, asset quantity, std::string memo){
+     
+ savetokens(from, quantity,to);
+
+}
+
+[[eosio::on_notify("emanateoneos::transfer")]]
+void issueetfemt (name from, name to, asset quantity, std::string memo){
+     
+ savetokens(from, quantity,to);
+
+}
+
+[[eosio::on_notify("minedfstoken::transfer")]]
+void issueetfdfs (name from, name to, asset quantity, std::string memo){
      
  savetokens(from, quantity,to);
 
@@ -358,6 +424,8 @@ private:
     void refund_tokens_back(name from, name to, asset quantity, std::string memo) {
 
     check (quantity.amount >= 10000, "Can't redeem less than 1 EOSETF" );
+
+    check (quantity.amount <= 2000000, "Can't redeem less than 1 EOSETF" );
 
     pauseornot();
 
@@ -517,7 +585,12 @@ checkratuus (from);
 void checkratuus( name from )
     {
 
-symbol symefx = symbol("EFX", 4);
+basetoktab basetable(_self, _self.value);
+basetoken baseiter;
+
+  baseiter = basetable.get();    
+
+//symbol symefx = symbol("EFX", 4);
     
 useritokenid input(get_self(), from.value);
 
@@ -528,24 +601,26 @@ etfsize soloiter;
 
 soloiter = sizetable.get();
 
-//ig size is smaller will not issue CETF/EOSETF, just saves the token values in the table. 
+//if size is smaller will not issue CETF/EOSETF, just saves the token values in the table. 
 if (size == soloiter.size ) {
 
-const auto& efxrow = input.find(symefx.code().raw() );
+const auto& basetokrow = input.find(baseiter.base.code().raw() );
 
 for (auto iter = input.begin(); iter != input.end();)
 {
 
 check (iter->token.amount != 0, "Doggy Afuera!");
 
-check ((iter->token.amount * iter->multiplier / efxrow->token.amount == iter->ratio), "Incorrect token ratios.");
+check ((iter->token.amount * iter->multiplier / basetokrow->token.amount == iter->ratio), "Incorrect token ratios.");
+
+//check (false, iter->token.amount * iter->multiplier / efxrow->token.amount);
 
 input.erase(iter++);
 
 }
 
-
-struct asset numberofetfs = {int64_t ((efxrow->token.amount/106593)*10000), symbol ("EOSETF", 4)};
+//CHANGE here 
+struct asset numberofetfs = {int64_t ((basetokrow->token.amount/361)*10000), symbol ("EOSETF", 4)};
 
 createetf(from, numberofetfs );
 
