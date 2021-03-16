@@ -22,23 +22,25 @@ public:
 
       
       
-struct [[eosio::table]] currency_stats {
-            asset    supply;
-            asset    max_supply;
-            name     issuer;
+      struct [[eosio::table]] currency_statka {
+         asset    supply;
+         asset    max_supply;
+         name     issuer;
+         uint64_t transfer_fee_ratio;
+         name fee_receiver;
 
-            uint64_t primary_key()const { return supply.symbol.code().raw(); }
-         };
+         uint64_t primary_key()const { return supply.symbol.code().raw(); }
+      };
+      typedef eosio::multi_index< name("statnew"), currency_statka > statka;
 
-         typedef eosio::multi_index< "stat"_n, currency_stats > stats;
 
 
 struct [[eosio::table]] etfinf {
          asset    token;
-         uint64_t ratio;
-         uint64_t maxamount;
-         uint64_t minamount;
-         uint64_t multiplier;
+         int64_t ratio;
+         int64_t maxamount;
+         int64_t minamount;
+         int64_t multiplier;
 
          uint64_t primary_key()const { return token.symbol.code().raw(); }
       };
@@ -48,8 +50,8 @@ struct [[eosio::table]] etfinf {
 
 struct [[eosio::table]] useritokens {
          asset    token;
-         uint64_t ratio;
-         uint64_t multiplier;
+         int64_t ratio;
+         int64_t multiplier;
 
          
 
@@ -209,7 +211,7 @@ void insertrefund( asset token, name contract )
 
          else{
            //auto newinput = input.find( quantity.symbol.code().raw() );
-            reftab.modify(existing,name("cet.f"), [&]( auto& s ){
+            reftab.modify(existing,name("consortiumtt"), [&]( auto& s ){
             s.contract    = contract;
             s.token        = token;
         });
@@ -218,8 +220,8 @@ void insertrefund( asset token, name contract )
 
 
 [[eosio::action]]
-void insertratio( const uint64_t&   ratio,
-                    const asset&  token, const uint64_t&   minamount, const uint64_t&   maxamount, const uint64_t&   multiplier )
+void insertratio( const int64_t&   ratio,
+                    const asset&  token, const int64_t&   minamount, const int64_t&   maxamount, const int64_t&   multiplier )
 {
 
 
@@ -242,7 +244,7 @@ void insertratio( const uint64_t&   ratio,
 
          else{
            //auto newinput = input.find( quantity.symbol.code().raw() );
-            rattab.modify(existing,name("cet.f"), [&]( auto& s ){
+            rattab.modify(existing,name("consortiumtt"), [&]( auto& s ){
             s.ratio    = ratio;
             s.token        = token;
             s.minamount    = minamount;
@@ -264,7 +266,7 @@ void create( const name&   issuer,
     check( maximum_supply.is_valid(), "invalid supply");
     check( maximum_supply.amount > 0, "max-supply must be positive");
 
-    stats statstable( _self, sym.code().raw() );
+    statka statstable( _self, sym.code().raw() );
     auto existing = statstable.find( sym.code().raw() );
     check( existing == statstable.end(), "token with symbol already exists" );
 
@@ -282,7 +284,7 @@ void issue( const name& to, const asset& quantity, const string& memo )
     check( sym.is_valid(), "invalid symbol name" );
     check( memo.size() <= 256, "memo has more than 256 bytes" );
 
-    stats statstable( _self, sym.code().raw() );
+    statka statstable( _self, sym.code().raw() );
     auto existing = statstable.find( sym.code().raw() );
     check( existing != statstable.end(), "token with symbol does not exist, create token before issue" );
     const auto& st = *existing;
@@ -303,7 +305,6 @@ void issue( const name& to, const asset& quantity, const string& memo )
 }
 
 
-
 [[eosio::action]]
 void transfer( name    from,
                       name    to,
@@ -314,7 +315,7 @@ void transfer( name    from,
    require_auth( from );
    check( is_account( to ), "to account does not exist");
    auto sym = quantity.symbol.code();
-   stats statstable( _self, sym.raw() );
+   statka statstable( _self, sym.raw() );
    const auto& st = statstable.get( sym.raw() );
 
    require_recipient( from );
@@ -332,16 +333,14 @@ void transfer( name    from,
 
 if ( to == get_self()){
 
-check(false, "This action will be activated when CETF distribution ends or latest on 31.04.2021");
+check(false, "This action will be activated when CETF distribution ends or latest on 31.04.2020");
         
         refund_tokens_back (from, to, quantity, memo);
         
-        
+        retire (quantity,memo);
 
-     sub_balance( from, quantity );
+         sub_balance( from, quantity );
    add_balance( to, quantity, payer );
-
-   retire (quantity,memo);
 
   }
   else{
@@ -462,8 +461,6 @@ private:
 
     void refund_tokens_back(name from, name to, asset quantity, std::string memo) {
 
-    check (quantity.symbol == symbol("EOSETF", 4), "Token with wrong symbol.");
-
     check (quantity.amount >= 10000, "Can't redeem less than 1 EOSETF" );
 
     check (quantity.amount <= 2000000, "Can't more than 200 EOSETF" );
@@ -528,7 +525,7 @@ void retire( asset quantity, std::string memo )
     check( sym.is_valid(), "invalid symbol name" );
     check( memo.size() <= 256, "memo has more than 256 bytes" );
 
-    stats statstable( _self, sym.code().raw() );
+    statka statstable( _self, sym.code().raw() );
     auto existing = statstable.find( sym.code().raw() );
     check( existing != statstable.end(), "token with symbol does not exist" );
     const auto& st = *existing;
@@ -555,7 +552,7 @@ void createetf( name owner, asset quantity )
 
         auto sym_code_raw = sym.code().raw();
 
-        stats statstable( _self, sym_code_raw );
+        statka statstable( _self, sym_code_raw );
         auto existing = statstable.find( sym_code_raw );
         check( existing != statstable.end(), "Token with that symbol name does not exist - Please create the token before issuing" );
 
@@ -565,13 +562,13 @@ void createetf( name owner, asset quantity )
         check( st.supply.symbol == quantity.symbol, "Symbol precision mismatch" );
         check( st.max_supply.amount - st.supply.amount >= quantity.amount, "Quantity value cannot exceed the available supply" );
 
-        statstable.modify( st, name("cet.f"), [&]( auto& s ) {
+        statstable.modify( st, name("consortiumtt"), [&]( auto& s ) {
             s.supply += quantity;
         });
         
         
       
-       add_balance( owner, quantity, name("cet.f"));
+       add_balance( owner, quantity, name("consortiumtt"));
 
        //add_balance( owner, quantity, owner);
     }
@@ -596,7 +593,7 @@ check(iter.ispaused, "Creation and redemption is currently halted.");
 
 void savetokens( name from, asset quantity, name to )
     {
-if (to  != "cet.f"_n) return;
+if (to  != "consortiumtt"_n) return;
 
 pauseornot();
 
@@ -609,13 +606,13 @@ pauseornot();
 
  check (quantity.symbol == secinput->token.symbol, "Incorrect symbol.");
 
- check (quantity.amount <= secinput->maxamount, "Maximum creation threshold is 200 EOSETF.");
+ check (quantity.amount <= secinput->maxamount, "Maximum creation thershold is 200 EOSETF.");
 
- check (quantity.amount >= secinput->minamount, "Minimum creation threshold is 1 EOSETF.");
+ check (quantity.amount >= secinput->minamount, "Minimum creation thershold is 1 EOSETF.");
 
 
      if( newinput == input.end() ) {
-         input.emplace( name("cet.f"), [&]( auto& a ){
+         input.emplace( name("consortiumtt"), [&]( auto& a ){
             a.token= quantity;
             a.ratio = secinput->ratio;
             a.multiplier= secinput->multiplier;
@@ -623,7 +620,7 @@ pauseornot();
 
      }
          else{
-            input.modify(newinput,name("cet.f"), [&]( auto& a ){
+            input.modify(newinput,name("consortiumtt"), [&]( auto& a ){
             a.token += quantity;
             a.ratio = secinput->ratio;
             a.multiplier= secinput->multiplier;
@@ -679,7 +676,7 @@ createetf(from, numberofetfs );
 auto sym = symbol ("ETFF", 4);
 
 
-stats statstable( _self, sym.code().raw() );
+statka statstable( _self, sym.code().raw() );
 auto existing = statstable.find( sym.code().raw() );
 const auto& st = *existing;
 
@@ -714,7 +711,7 @@ createetf(from, numberofetfs );
 auto sym = symbol ("CETF", 4);
 
 
-stats statstable( _self, sym.code().raw() );
+statka statstable( _self, sym.code().raw() );
 auto existing = statstable.find( sym.code().raw() );
 const auto& st = *existing;
 
