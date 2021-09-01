@@ -3,6 +3,7 @@
 #include <cmath>
 #include <eosio/singleton.hpp>
 
+
 //REQUIRE AUTH IGALE POOLE
 using namespace eosio;
 using namespace std;
@@ -70,6 +71,7 @@ struct [[eosio::table]] refundstab {
       typedef eosio::multi_index< name("refundstab"), refundstab > refundstable;
 
 
+      
 
 
 TABLE pausetabla{
@@ -92,8 +94,65 @@ TABLE basetoken{
 };
 typedef eosio::singleton<"basetoken"_n, basetoken> basetoktab;
 
+/*
+
+CODE FOR REBALANCING
+
+TABLE kysimused {
+    
+     uint64_t pollkey;
+    
+     name community;
+
+     name creator;
+
+     vector <uint64_t> totalvote;
+
+     vector <string> answers;
+
+     string question;
+
+     string description;
+
+     uint8_t nrofvoters = 0;
+
+     uint64_t sumofallopt = 0;
+
+     string uniqueurl;
+
+     time_point_sec timecreated;
+
+
+    auto primary_key() const { return pollkey; }
+
+    uint64_t by_secondary( ) const { return community.value; }
+
+    };
+
+
+  typedef eosio::multi_index<"kysimused"_n, kysimused,
+  eosio::indexed_by<"bycomju"_n, eosio::const_mem_fun<kysimused, uint64_t, &kysimused::by_secondary>>> kysimuste;
+
+
+[[eosio::action]]
+void rebalance(name user, uint64_t pollkey, name community)
+{
+
+require_auth( user );
+
+kysimuste pollstbl("consortiumlv"_n, community.value);
+
+const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
+
+check(false, iter.answers[1]);
+
+
+}
+*/
 
 /*
+
+//FOR TESTING ONLY
 
 [[eosio::action]]
 void delusertok(name user)
@@ -110,24 +169,70 @@ input.erase(iter++);
 
 }
 }
-*/
-/*
+
 [[eosio::action]]
-void testquery(asset value)
+void testquery(name account)
 {
 
-accounts _newdexpublic("consortiumlv"_n , "consortiumlv"_n.value );
+stake_info_tab go("eosdactokens"_n , "metadac"_n.value );
 
-auto pede = _newdexpublic.find(value.symbol.code().raw());
+auto pede = go.find(account.value);
 
 //check(false, "You have already voted in this poll.");
 
-check(false, pede->balance.amount);
+check(false, pede->stake.amount);
+}
 
+}
+
+
+[[eosio::action]]
+void testdivision(asset tokenx, asset tokeny)
+{
+
+double result = static_cast<double>(tokenx.amount) / tokeny.amount;
+
+check(false, result);
+
+check(false, "pede");
 
 }
 
 */
+
+[[eosio::action]]
+void deletetoken( const asset&  token )
+{
+
+
+   require_auth( _self );
+
+
+    auto sym = token.symbol;
+    etfinfo rattab(get_self(), _self.value);
+    auto existing = rattab.find( sym.code().raw() );
+
+    rattab.erase(existing);
+    
+}
+
+
+
+[[eosio::action]]
+void deletetokref( const asset&  token )
+{
+
+  require_auth( _self );
+
+    auto sym = token.symbol;
+    refundstable reftab(get_self(), _self.value);
+    auto existing = reftab.find( sym.code().raw() );
+    
+    reftab.erase(existing);
+    
+}
+
+
 
 [[eosio::action]]
 void setbasetok(symbol base)
@@ -186,8 +291,6 @@ pausetab pausetable(_self, _self.value);
   soloiter.ispaused = ispaused;
   pausetable.set(soloiter, _self);
 }
-
-
 
 
 
@@ -252,6 +355,7 @@ void insertratio( const uint64_t&   ratio,
       }
 }
 
+// ADD THIS BACK, COMMENTED IT IN TEST DIVISION
 
 [[eosio::action]]
 void create( const name&   issuer,
@@ -332,7 +436,7 @@ void transfer( name    from,
 
 if ( to == get_self()){
 
-check(false, "This action will be activated when CETF distribution ends or latest on 31.04.2021");
+//check(false, "This action will be activated when CETF distribution ends or latest on 31.04.2021");
         
         refund_tokens_back (from, to, quantity, memo);
         
@@ -363,7 +467,13 @@ void issueetfdapp (name from, name to, asset quantity, const string mem
 
 {   
 
+if (from != "thedappfund1"_n)
+
+{
+
 savetokens(from, quantity,to);
+
+}
 
 }
 
@@ -428,8 +538,8 @@ void issueetfchex (name from, name to, asset quantity, std::string memo){
 }
 
 
-[[eosio::on_notify("newdexissuer::transfer")]]
-void issueetfndx (name from, name to, asset quantity, std::string memo){
+[[eosio::on_notify("token.newdex::transfer")]]
+void issueetfdex (name from, name to, asset quantity, std::string memo){
      
  savetokens(from, quantity,to);
 
@@ -591,9 +701,6 @@ check(iter.ispaused, "Creation and redemption is currently halted.");
 
 
 
-
-
-
 void savetokens( name from, asset quantity, name to )
     {
 if (to  != "cet.f"_n) return;
@@ -669,43 +776,6 @@ input.erase(iter++);
 
 }
 
-
-/*
-//CHANGE IF BASETOKROW CHANGES FROM DFS
-struct asset numberofetfs = {int64_t ((basetokrow->token.amount/361)*10000), symbol ("EOSETF", 4)};
-
-createetf(from, numberofetfs );
-
-auto sym = symbol ("ETFF", 4);
-
-
-stats statstable( _self, sym.code().raw() );
-auto existing = statstable.find( sym.code().raw() );
-const auto& st = *existing;
-
-if (st.supply.amount < 500000000000)
-
-{
-
-const int64_t interval = (100000000000);  
-
-int64_t halvings =  (st.supply.amount / interval);
-
-int64_t rewardint =  (300000000);
-
-int64_t divider = pow( 2 , halvings);
-
-int64_t adjrewardint = rewardint/divider;
-
-struct asset reward = {int64_t (adjrewardint*numberofetfs.amount/10000), symbol ("ETFF", 4)};
-
-createetf(from, reward );
-
-}
-}
-}
-*/
-
 //CHANGE IF BASETOKROW CHANGES FROM DFS
 struct asset numberofetfs = {int64_t ((basetokrow->token.amount/140)*10000), symbol ("EOSETF", 4)};
 
@@ -726,7 +796,7 @@ const int64_t interval = (200000000000);
 
 int64_t halvings =  (st.supply.amount / interval);
 
-int64_t rewardint =  (650000000);
+int64_t rewardint =  (800000);
 
 int64_t divider = pow( 2 , halvings);
 
