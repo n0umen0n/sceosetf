@@ -2,6 +2,9 @@
 #include <eosio/asset.hpp>
 #include <cmath>
 #include <eosio/singleton.hpp>
+#include <numeric>
+
+
 
 
 //REQUIRE AUTH IGALE POOLE
@@ -94,9 +97,25 @@ TABLE basetoken{
 };
 typedef eosio::singleton<"basetoken"_n, basetoken> basetoktab;
 
-/*
 
-CODE FOR REBALANCING
+
+//CODE FOR REBALANCING
+
+TABLE allocations {
+    
+  asset tokenpercold;
+
+  asset tokenpercnew;   
+  
+  uint64_t pollkey;
+ 
+    uint64_t primary_key()const { return token.symbol.code().raw(); }
+
+    };
+
+  typedef eosio::multi_index<"allocperc"_n, allocations> allocperctab,
+
+
 
 TABLE kysimused {
     
@@ -136,6 +155,7 @@ TABLE kysimused {
 
 [[eosio::action]]
 void rebalance(name user, uint64_t pollkey, name community)
+
 {
 
 require_auth( user );
@@ -144,11 +164,49 @@ kysimuste pollstbl("consortiumlv"_n, community.value);
 
 const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
 
+
+
+//SAVE THE ALLOCATIONS IN NEW TABLE  .  .  .  .  .   .
+// Specific x 10000 /TOTAL = precision two decimals. 
+
+//Get sum of vectors  -> iter.sumofallopt
+
+/*
+for (auto it = begin(vector); it != end(vector); ++it) {
+    it->doSomething ();
+}
+/
+*/
+for(int i=0; i < iter.answers.size(); i++){
+
+   vector[i].doSomething();
+
+}
+
+
+//VAJA TABELISSE SAADA SEE KRDI UUS PERCENTAGE
+
+//PEAB VAATAMA MITTE EELMIST % AGA CURRENT, EHK SIIS ARVUTAMA MIS ON PRAEGUSED
+
+//LOOP THE SAME ALLOCATIONS TABEL. TWO LOOPS, FIRST LOOP ONLY SELLS, SECOND LOOP BUYS. IF STATEMENT IN EACH LOOP.
+
+/* NO NEED TO SUM BECAUSE IT IS AVAILABLE IN THE TABLE SO BELOW CODE FOR FUTURE USE
+
+sum_of_elems = std::accumulate(vector.begin(), vector.end(),
+                               decltype(vector)::value_type(0));
+
+std::for_each(vector.begin(), vector.end(), [&] (int n) {
+    sum_of_elems += n;
+});
+
+*/
+
+
 check(false, iter.answers[1]);
 
 
 }
-*/
+
 
 /*
 
