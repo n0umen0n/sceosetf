@@ -101,20 +101,60 @@ typedef eosio::singleton<"basetoken"_n, basetoken> basetoktab;
 
 //CODE FOR REBALANCING
 
+//FINISH TABLES DEFIBOX AND TEST IF WORK. 
+
+struct token {
+      name contract;
+      symbol symbol;
+    };
+
+
+TABLE pair {
+    
+  uint64_t id;
+
+  token token0;   
+  
+  token token1;   
+
+  asset reserve0;
+
+  asset reserve1;
+
+  uint64_t liquidity_token;
+
+  double price0_last;
+
+  double price1_last;
+
+  uint64_t price0_cumulative_last;
+
+  uint64_t price1_cumulative_last;
+
+  time_point_sec block_time_last;
+ 
+auto primary_key() const { return id; }
+    };
+
+  typedef eosio::multi_index<"pairs"_n, pair> pairs;
+
+
+
+/*
 TABLE allocations {
     
   asset tokenpercold;
 
   asset tokenpercnew;   
   
-  uint64_t pollkey;
+//  uint64_t pollkey;
  
     uint64_t primary_key()const { return token.symbol.code().raw(); }
 
     };
 
   typedef eosio::multi_index<"allocperc"_n, allocations> allocperctab,
-
+*/
 
 
 TABLE kysimused {
@@ -153,6 +193,7 @@ TABLE kysimused {
   eosio::indexed_by<"bycomju"_n, eosio::const_mem_fun<kysimused, uint64_t, &kysimused::by_secondary>>> kysimuste;
 
 
+
 [[eosio::action]]
 void rebalance(name user, uint64_t pollkey, name community)
 
@@ -163,6 +204,63 @@ require_auth( user );
 kysimuste pollstbl("consortiumlv"_n, community.value);
 
 const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
+
+
+
+  for(int i=0; i < iter.answers.size(); i++){
+
+    //what precision do we want
+    uint64_t intperc = iter.totalvote[i] * 10000 / iter.sumofallopt;
+
+    struct asset percasset = {int64_t (intperc), iter.answers[i].symbol};
+
+    //TRANSFORM THE ANSWERS FROM STRING TO SYM
+    auto sym = iter.answers[i].symbol;
+    allocperctab alloctab(get_self(), _self.value);
+    auto existing = alloctab.find( sym.code().raw() );
+    
+     if(existing==alloctab.end() ) {
+         alloctab.emplace( _self, [&]( auto& s ) {
+            s.tokenpercnew    = percasset;
+        });
+
+        }
+
+     else {
+            alloctab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokenpercnew    = percasset;
+        });
+        
+        }
+
+//VÕTA TABELIST CURRENT TOKENS AMOUNT 
+//KORRUTA LÄBI HINNAGA
+//SAA KUSKILT TOTAL EOS WORTH? LOOPIGA?
+//SIIS SALVESTA PERC TABELISSE
+//SIIS KUI SELL VÕTA TABLELIST KUS TOKENI ARV
+//KUI BUY VÕTA PERC FROM TOTAL EOS
+   vector[i].doSomething();
+
+}
+
+
+
+
+//VAJA TABELISSE SAADA SEE KRDI UUS PERCENTAGE
+
+//PEAB VAATAMA MITTE EELMIST % AGA CURRENT, EHK SIIS ARVUTAMA MIS ON PRAEGUSED
+
+//LOOP THE SAME ALLOCATIONS TABEL. TWO LOOPS, FIRST LOOP ONLY SELLS, SECOND LOOP BUYS. IF STATEMENT IN EACH LOOP.
+
+/* NO NEED TO SUM BECAUSE IT IS AVAILABLE IN THE TABLE SO BELOW CODE FOR FUTURE USE
+
+
+sum_of_elems = std::accumulate(vector.begin(), vector.end(),
+                               decltype(vector)::value_type(0));
+
+std::for_each(vector.begin(), vector.end(), [&] (int n) {
+    sum_of_elems += n;
+});
 
 
 
@@ -177,36 +275,28 @@ for (auto it = begin(vector); it != end(vector); ++it) {
 }
 /
 */
-for(int i=0; i < iter.answers.size(); i++){
-
-   vector[i].doSomething();
-
-}
 
 
-//VAJA TABELISSE SAADA SEE KRDI UUS PERCENTAGE
-
-//PEAB VAATAMA MITTE EELMIST % AGA CURRENT, EHK SIIS ARVUTAMA MIS ON PRAEGUSED
-
-//LOOP THE SAME ALLOCATIONS TABEL. TWO LOOPS, FIRST LOOP ONLY SELLS, SECOND LOOP BUYS. IF STATEMENT IN EACH LOOP.
-
-/* NO NEED TO SUM BECAUSE IT IS AVAILABLE IN THE TABLE SO BELOW CODE FOR FUTURE USE
-
-sum_of_elems = std::accumulate(vector.begin(), vector.end(),
-                               decltype(vector)::value_type(0));
-
-std::for_each(vector.begin(), vector.end(), [&] (int n) {
-    sum_of_elems += n;
-});
-
-*/
 
 
 check(false, iter.answers[1]);
 
 
+
+
+
 }
 
+[[eosio::action]]
+void calcprice(name contract, uint64_t pairid)
+{
+pairs pairtab("swap.defi"_n, contract.value);
+
+const auto &iter = pairtab.get(pairid, "No poll found with such key" );
+
+check (false, iter.reserve0.amount);
+
+}
 
 /*
 
@@ -258,6 +348,7 @@ check(false, "pede");
 
 */
 
+/*
 [[eosio::action]]
 void deletetoken( const asset&  token )
 {
@@ -883,7 +974,7 @@ createetf(from, reward );
 
 
 
-
+*/
 
 
 
