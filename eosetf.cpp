@@ -140,22 +140,6 @@ auto primary_key() const { return id; }
 
 
 
-/*
-TABLE allocations {
-    
-  asset tokenpercold;
-
-  asset tokenpercnew;   
-  
-//  uint64_t pollkey;
- 
-    uint64_t primary_key()const { return token.symbol.code().raw(); }
-
-    };
-
-  typedef eosio::multi_index<"allocperc"_n, allocations> allocperctab,
-*/
-
 
 TABLE kysimused {
     
@@ -194,6 +178,51 @@ TABLE kysimused {
 
 
 
+
+/*
+TABLE allocations {
+    
+  asset tokenpercur;
+
+  asset tokenpercnew;   
+  
+//  uint64_t pollkey;
+ 
+    uint64_t primary_key()const { return token.symbol.code().raw(); }
+
+    };
+
+  typedef eosio::multi_index<"allocperc"_n, allocations> allocperctab,
+*/
+
+/*
+
+TABLE tokeninfund {
+    
+  asset tokensinfund;  
+
+  asset tokenwortheos;
+   
+    uint64_t primary_key()const { return tokeninfund.symbol.code().raw(); }
+
+    };
+
+  typedef eosio::multi_index<"tokinfund"_n, tokeninfund> tokinfuntab,
+
+*/
+
+TABLE idsymlink {
+    
+  uint64_t pairid;  
+   
+    auto primary_key() const { return pairid; }
+
+    };
+
+  typedef eosio::multi_index<"idsymlink"_n, idsymlink> sympair,
+
+
+
 [[eosio::action]]
 void rebalance(name user, uint64_t pollkey, name community)
 
@@ -209,6 +238,8 @@ const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
 
   for(int i=0; i < iter.answers.size(); i++){
 
+
+    //ADDING THE NEW PERCENTAGE TO THE TABLE
     //what precision do we want
     uint64_t intperc = iter.totalvote[i] * 10000 / iter.sumofallopt;
 
@@ -224,16 +255,88 @@ const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
             s.tokenpercnew    = percasset;
         });
 
-        }
+                                   }
 
      else {
             alloctab.modify(existing,name("cet.f"), [&]( auto& s ){
               s.tokenpercnew    = percasset;
         });
         
+         }
+
+
+
+//CURRENT HINNA PÕHJAL TOKENPERCUR
+
+//kontrolli kas "swap.defi"_n.value) ok
+
+//WE HAVE A TABLE THAT HAS PAIRIDS LINKED WITH SYM
+sympair sympairtab(get_self(), _self.value);
+
+const auto &iterpairid = sympairtab.get(iter.answers[i].symbol, "No pairid for such symbol" );
+
+
+pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
+
+const auto &iterpair = pairtab.get(iterpairid.pairid, "No row with such pairid" );
+
+
+tokinfuntab tokentab(get_self(), _self.value);
+
+const auto &tokiter = tokentab.get( iter.answers[i].symbol, "No tokens found with such symbol" );
+
+
+if (iterpair.reserve0.symbol == iter.answers[i].symbol) {
+
+//SIIN VAJA TABELISSE SALVESTADA EOS VÄÄRTUSES AMOUNT
+
+//token in fund teha sama decimaliga kõigil? aga kuidas siis kui lahutamine v litmine, seal peaks ka tranformation toimuma?
+//struct asset eosworth = {int64_t (iterpair.price0_last * tokiter.tokensinfund), (iter.answers[i].symbol)};
+
+struct asset eosworth = {int64_t (iterpair.price0_last * tokiter.tokensinfund.amount), (tokiter.tokensinfund.symbol)};
+
+            auto existing = tokentab.find( iter.answers[i].symbol.code().raw() );
+            rattab.modify(existing,name("cet.f"), [&]( auto& s ){
+            s.tokenwortheos    = eosworth;
+        });
+      
+
+//tokinfuntab tokentab(get_self(), _self.value);
+
+// NEED ASSET TO DOUBLE, UINT64 TO DOUBLE/FLOAAT
+
+//siis EOS price of token = price0_last
+
+// SAAB LIHTSALT KORRUTADA AMOUNT * FLOATIGA, symbol j''b tokeni oma kuid tegelikult on EOS amount. 
+
+}
+
+//SIIA VAJA UUS LOOP MIS ALLOC TABELISSE ARVUTAB TOKENPERCUR
+
+
+
+const auto &iteralloc = alloctab.get( iter.answers[i].symbol}, "No percentage found for such token" );
+
+//SELL 
+if (iteralloc.tokenpercur.amount > iteralloc.tokenpernew.amount) {
+
+
+
+
+
+}
+
+
+
+
+     
+
+
         }
 
-//VÕTA TABELIST CURRENT TOKENS AMOUNT 
+
+//VÕTA TABELIST CURRENT TOKENS AMOUNT DONE
+//KONTROLLI KAS UUS PERC SUUREM VÕI VÄIKSEM
 //KORRUTA LÄBI HINNAGA
 //SAA KUSKILT TOTAL EOS WORTH? LOOPIGA?
 //SIIS SALVESTA PERC TABELISSE
@@ -278,7 +381,7 @@ for (auto it = begin(vector); it != end(vector); ++it) {
 
 
 
-
+//SIIN KAKS ALUMIST COMMENTI MAHA JA rebalanci yleval
 check(false, iter.answers[1]);
 
 
@@ -287,6 +390,59 @@ check(false, iter.answers[1]);
 
 }
 
+
+//CHECK IF THIS FUNC WORKS
+
+[[eosio::action]]
+void addtokens(vector <uint64_t> pairid, vector <symbol> symbol)
+{
+
+require_auth ( _self);
+
+for (size_t i = 0; i < pairid.size(); ++i)
+
+{
+sympair sympairtab(_self, _self.value);
+auto pairrow = sympairtab.find(symbol[i].code().raw() );
+check(pairrow == sympairtab.end(), "This token has been added");
+
+sympairtab.emplace(_self, [&](auto& item) {
+    item.pairid = pairid[i];
+  });
+ }
+
+
+}
+
+
+sympair sympairtab("swap.defi"_n, contract.value);
+
+const auto &iter = pairtab.get(pairid, "No poll found with such key" );
+
+struct asset refundasset = {int64_t (23145435543), symbol ("EOSETF", 4)};
+
+2574915 .   0.00011124939868868
+
+2574915,786546351663753
+
+
+
+257,491578654635166
+
+struct asset aftercalc = {int64_t (refundasset.amount * iter.price0_last), symbol ("EOSETF", 4)};
+
+
+//check (false, iter.reserve0.amount);
+check (false, aftercalc.amount);
+
+
+}
+
+
+
+
+
+
 [[eosio::action]]
 void calcprice(name contract, uint64_t pairid)
 {
@@ -294,7 +450,22 @@ pairs pairtab("swap.defi"_n, contract.value);
 
 const auto &iter = pairtab.get(pairid, "No poll found with such key" );
 
-check (false, iter.reserve0.amount);
+struct asset refundasset = {int64_t (23145435543), symbol ("EOSETF", 4)};
+
+2574915 .   0.00011124939868868
+
+2574915,786546351663753
+
+
+
+257,491578654635166
+
+struct asset aftercalc = {int64_t (refundasset.amount * iter.price0_last), symbol ("EOSETF", 4)};
+
+
+//check (false, iter.reserve0.amount);
+check (false, aftercalc.amount);
+
 
 }
 
