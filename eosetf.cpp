@@ -99,6 +99,7 @@ typedef eosio::singleton<"basetoken"_n, basetoken> basetoktab;
 
 
 
+
 //CODE FOR REBALANCING
 
 //FINISH TABLES DEFIBOX AND TEST IF WORK. 
@@ -222,6 +223,54 @@ TABLE idsymlink {
   typedef eosio::multi_index<"idsymlink"_n, idsymlink> sympair,
 
 
+//NEW TABLE REBALCNING 
+TABLE totaleosworth{
+
+  asset eosworth;
+};
+typedef eosio::singleton<"totleosworth"_n, totaleosworth> totleostab;
+
+
+
+
+[[eosio::action]]
+void setbasetok(symbol base)
+{
+
+  require_auth( _self );
+
+basetoktab basetable(_self, _self.value);
+  basetoken soloiter;
+
+  if(!basetable.exists()){
+    basetable.set(soloiter, _self);
+  }
+  else{
+    soloiter = basetable.get();
+  }
+  soloiter.base = base;
+  basetable.set(soloiter, _self);
+}
+
+[[eosio::action]]
+void seteosworth (asset eosworth)
+{
+
+  require_auth( _self );
+
+totleostab eostable(_self, _self.value);
+  totaleosworth soloiter;
+
+  if(!eostable.exists()){
+    eostable.set(soloiter, _self);
+  }
+  else{
+    soloiter = eostable.get();
+  }
+  soloiter.eosworth = eosworth;
+  eostable.set(soloiter, _self);
+}
+
 
 [[eosio::action]]
 void rebalance(name user, uint64_t pollkey, name community)
@@ -311,13 +360,45 @@ struct asset eosworth = {int64_t (iterpair.price0_last * tokiter.tokensinfund.am
 
 }
 
+
+//Eras
+
+totleostab eostable(_self, _self.value);
+totaleosworth soloiter;
+soloiter = eostable.get();
+
+struct asset zeroeos = {int64_t (0), soloiter.tokenwortheos.symbol};
+
+soloiter.eosworth = zeroeos;
+
+
+//FIRST LOOP MIS ARVUTAB KUI PALJU ON TOTAL EOS WORTH 
+tokinfuntab tokentab(get_self(), _self.value);
+
+    for (auto iter = tokentab.begin(); iter != tokentab.end(); iter++)
+{
+
+totleostab eostable(_self, _self.value);
+totaleosworth soloiter;
+soloiter = eostable.get();
+
+soloiter.eosworth.amount += iter->tokenwortheos.amount;
+
+}
+
+
 //SIIA VAJA UUS LOOP MIS ALLOC TABELISSE ARVUTAB TOKENPERCUR
 
 
 
+
+
+
+
+//SELL FIRST
+
 const auto &iteralloc = alloctab.get( iter.answers[i].symbol}, "No percentage found for such token" );
 
-//SELL 
 if (iteralloc.tokenpercur.amount > iteralloc.tokenpernew.amount) {
 
 
