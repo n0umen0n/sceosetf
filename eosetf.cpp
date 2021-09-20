@@ -3,6 +3,8 @@
 #include <cmath>
 #include <eosio/singleton.hpp>
 #include <numeric>
+//#include <string> 
+
 
 
 
@@ -177,13 +179,24 @@ TABLE kysimused {
   typedef eosio::multi_index<"kysimused"_n, kysimused,
   eosio::indexed_by<"bycomju"_n, eosio::const_mem_fun<kysimused, uint64_t, &kysimused::by_secondary>>> kysimuste;
 
+/* SEE TGLT SEND OLEMAS ALL
+void swaptransfer(name from, name to, asset quantity, std::string memo, name contract) {
 
 
+      action(
+      permission_level{get_self(),"active"_n},
+      contract,
+      "transfer"_n,
+      std::make_tuple(from,to,quantity,memo)
+    ).send();
+  };
+  */
 
+//COMBINE THOSE TWO TABLES?THREE TABLES. 
 /*
 TABLE allocations {
     
-  asset tokenpercur;
+  asset tokenperold;
 
   asset tokenpercnew;   
   
@@ -211,7 +224,7 @@ TABLE tokeninfund {
   typedef eosio::multi_index<"tokinfund"_n, tokeninfund> tokinfuntab,
 
 */
-
+/*
 TABLE idsymlink {
     
   uint64_t pairid;  
@@ -220,7 +233,38 @@ TABLE idsymlink {
 
     };
 
-  typedef eosio::multi_index<"idsymlink"_n, idsymlink> sympair,
+  typedef eosio::multi_index<"idsymlink"_n, idsymlink> sympair;
+
+
+
+TABLE rebalancedata {
+
+double tokeninfund;  //float?
+
+double tokenwortheos;
+
+double tokenperold;
+
+double tokenpercnew;
+
+int64_t decimals;
+
+uint64_t pairid;  
+
+string strpairid;
+
+symbol token;
+
+name contract;
+   
+auto primary_key() const { return pairid; }
+
+typedef eosio::multi_index<"rebalance"_n, rebalancedata> rebaldatatab;
+
+
+
+  }
+
 
 
 //NEW TABLE REBALCNING 
@@ -231,26 +275,56 @@ TABLE totaleosworth{
 typedef eosio::singleton<"totleosworth"_n, totaleosworth> totleostab;
 
 
+*/
+
+/*
+GETTING DOUBLE IN TABLE ALL GOOD> 
+
+
+
+TABLE testdouble {
+    
+  uint64_t pairid;  
+
+  double peded;  
+   
+    auto primary_key() const { return pairid; }
+
+    };
+
+  typedef eosio::multi_index<"pede"_n, testdouble> doublepede;
 
 
 [[eosio::action]]
-void setbasetok(symbol base)
+void testdivision(asset tokenx, asset tokeny, uint64_t pairid )
 {
 
-  require_auth( _self );
+double result = static_cast<double>(tokenx.amount) / tokeny.amount;
 
-basetoktab basetable(_self, _self.value);
-  basetoken soloiter;
 
-  if(!basetable.exists()){
-    basetable.set(soloiter, _self);
-  }
-  else{
-    soloiter = basetable.get();
-  }
-  soloiter.base = base;
-  basetable.set(soloiter, _self);
+  doublepede alloctab(get_self(), _self.value);
+    auto existing = alloctab.find( pairid );
+    
+     if(existing==alloctab.end() ) {
+         alloctab.emplace( _self, [&]( auto& s ) {
+            s.pairid    = pairid;
+             s.peded    = result;
+
+        });
+
+                                   }
+
+     else {
+            alloctab.modify(existing,name("cet.f"), [&]( auto& s ){
+ s.pairid    = pairid;
+             s.peded    = result;        });
+        
+          }
+
 }
+*/
+
+
 
 [[eosio::action]]
 void seteosworth (asset eosworth)
@@ -290,39 +364,45 @@ const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
 
     //ADDING THE NEW PERCENTAGE TO THE TABLE
     //what precision do we want
-    uint64_t intperc = iter.totalvote[i] * 10000 / iter.sumofallopt;
+    //FLOAT WOULD BE MUCH BETTER?
+   double newpercentage = static_cast<double>iter.totalvote[i] / iter.sumofallopt;
 
-    struct asset percasset = {int64_t (intperc), iter.answers[i].symbol};
+    //WHAT SYMBOL DO WE WANT? WE CAN PUT WHATEVER SYMBOL, BUt STILL BE ABLE TO QUERY BY SPECIFIC SYMBOL?
 
-    //TRANSFORM THE ANSWERS FROM STRING TO SYM
+    //TAKE THE SYMBOL FROM ANSWERS BUT CUSTOMIZE IT FOR LONGER DECIMALS? THEN THE ABOVE CAN BE MULTIPLIED WITH MORE NUMBERS TO MAKE SURE THAT INTEGER DOES NOTGET LOST.
+
+
+    //struct asset percasset = {int64_t (intperc), iter.answers[i].symbol};
+
+    //TRANSFORM THE ANSWERS FROM STRING TO SYM, MAKE THE SYM LONGEST POSSIBLE? 
     auto sym = iter.answers[i].symbol;
-    allocperctab alloctab(get_self(), _self.value);
-    auto existing = alloctab.find( sym.code().raw() );
+    rebaldatatab rebaltab(get_self(), _self.value);
+    auto existing = rebaltab.find( sym.code().raw() );
     
-     if(existing==alloctab.end() ) {
-         alloctab.emplace( _self, [&]( auto& s ) {
-            s.tokenpercnew    = percasset;
+     if(existing==rebaltab.end() ) {
+         rebaltab.emplace( _self, [&]( auto& s ) {
+            s.tokenpercnew    = newpercentage;
         });
 
                                    }
 
      else {
-            alloctab.modify(existing,name("cet.f"), [&]( auto& s ){
-              s.tokenpercnew    = percasset;
+            rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokenpercnew    = newpercentage;
         });
         
-         }
+          }
 
 
 
-//CURRENT HINNA PÕHJAL TOKENPERCUR
+//CURRENT HINNA PÕHJAL tokenperold
 
 //kontrolli kas "swap.defi"_n.value) ok
 
 //WE HAVE A TABLE THAT HAS PAIRIDS LINKED WITH SYM
-sympair sympairtab(get_self(), _self.value);
+//sympair sympairtab(get_self(), _self.value);
 
-const auto &iterpairid = sympairtab.get(iter.answers[i].symbol, "No pairid for such symbol" );
+const auto &rebaliter = rebaltab.get(iter.answers[i].symbol, "No pairid for such symbol" );
 
 
 pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
@@ -330,9 +410,9 @@ pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
 const auto &iterpair = pairtab.get(iterpairid.pairid, "No row with such pairid" );
 
 
-tokinfuntab tokentab(get_self(), _self.value);
+//tokinfuntab tokentab(get_self(), _self.value);
 
-const auto &tokiter = tokentab.get( iter.answers[i].symbol, "No tokens found with such symbol" );
+//const auto &tokiter = tokentab.get( iter.answers[i].symbol, "No tokens found with such symbol" );
 
 
 if (iterpair.reserve0.symbol == iter.answers[i].symbol) {
@@ -342,9 +422,13 @@ if (iterpair.reserve0.symbol == iter.answers[i].symbol) {
 //token in fund teha sama decimaliga kõigil? aga kuidas siis kui lahutamine v litmine, seal peaks ka tranformation toimuma?
 //struct asset eosworth = {int64_t (iterpair.price0_last * tokiter.tokensinfund), (iter.answers[i].symbol)};
 
-struct asset eosworth = {int64_t (iterpair.price0_last * tokiter.tokensinfund.amount), (tokiter.tokensinfund.symbol)};
 
-            auto existing = tokentab.find( iter.answers[i].symbol.code().raw() );
+//EOSWORTH DECIMALID PEAKSID OLEMA SELLISED NAGU ON SELLEL TOKENIL. 
+//struct asset eosworth = {int64_t (iterpair.price0_last * rebaliter.tokensinfund.amount), (rebaliter.tokensinfund.symbol)};
+
+double eosworth = iterpair.price0_last * rebaliter.tokensinfund;
+
+            auto existing = rebaltab.find( iter.answers[i].symbol.code().raw() );
             rattab.modify(existing,name("cet.f"), [&]( auto& s ){
             s.tokenwortheos    = eosworth;
         });
@@ -361,15 +445,17 @@ struct asset eosworth = {int64_t (iterpair.price0_last * tokiter.tokensinfund.am
 }
 
 
-//Eras
+//REPLACE TOTALEOSWORTH FROM PREVIOUS REBALACNING WITH 0
 
 totleostab eostable(_self, _self.value);
 totaleosworth soloiter;
 soloiter = eostable.get();
 
-struct asset zeroeos = {int64_t (0), soloiter.tokenwortheos.symbol};
+//struct asset zeroeos = {int64_t (0), soloiter.tokenwortheos.symbol};
 
-soloiter.eosworth = zeroeos;
+//double zeroeos = 0;
+
+soloiter.eosworth = 0;
 
 
 //FIRST LOOP MIS ARVUTAB KUI PALJU ON TOTAL EOS WORTH 
@@ -378,28 +464,128 @@ tokinfuntab tokentab(get_self(), _self.value);
     for (auto iter = tokentab.begin(); iter != tokentab.end(); iter++)
 {
 
+
+//kui saab siis selle ylesse et ei peaks uuesti kopima
 totleostab eostable(_self, _self.value);
 totaleosworth soloiter;
 soloiter = eostable.get();
 
-soloiter.eosworth.amount += iter->tokenwortheos.amount;
+soloiter.eosworth += iter->tokenwortheos;
 
 }
 
 
-//SIIA VAJA UUS LOOP MIS ALLOC TABELISSE ARVUTAB TOKENPERCUR
+//SIIA VAJA UUS LOOP MIS ALLOC TABELISSE ARVUTAB tokenperold
+
+
+//tokenperold OLEKS KA HEA FLOATIGA!!!! 
+
+// SIIN VÕTAB LOOBIKS NAGU ALGUSES õ  
+
+//
+
+ for(int i=0; i < iter.answers.size(); i++){
+
+
+ totleostab eostable(_self, _self.value);
+ totaleosworth soloiter;
+ soloiter = eostable.get();
+
+const auto &rebaliter = rebaltab.get(iter.answers[i].symbol, "No pairid for such symbol" );
+
+double tokenperold = rebaliter.tokenwortheos / soloiter.eosworth;
+
+auto existing = rebaltab.find( iter.answers[i].symbol.code().raw() );
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokenperold    = tokenperold;
+ }
+
+if (rebaliter.tokenperold > rebaliter.tokenpernew) {
+
+double diffpertosell = rebaliter.tokenperold - rebaliter.tokenpernew;
+
+double perdiff = diffpertosell / rebaliter.tokenperold;
+
+//double newtokeninfund = rebaliter.tokeninfund - rebaliter.tokeninfund * perdiff;
+
+//double toselldoub = rebaliter.tokeninfund - newtokeninfund;
+
+double toselldoub = rebaliter.tokeninfund * perdiff;
+
+struct asset tosell = {int64_t (toselldoub*rebaliter.decimals), rebaliter.toksymbol};
+
+string memo = "swap,0," + rebaliter.strpairid;
+
+send("swap.defi"_n, _self, tosell, memo, rebaliter.contract);  
+
+auto existing = rebaltab.find( iter.answers[i].symbol.code().raw() );
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokeninfund    -= toselldoub;
+
+//action to trigger sell
+
+ }
+
+
+for(int i=0; i < iter.answers.size(); i++){
+
+if (rebaliter.tokenperold < rebaliter.tokenpernew) {
+
+double diffpertobuy = rebaliter.tokenpernew - rebaliter.tokenperold;
+
+double perdiff = diffpertobuy / rebaliter.tokenperold;
+
+double eosworthtobuy = rebaliter.tokenwortheos * perdiff;
+
+struct asset tobuy = {int64_t (eosworthtobuy * 10000), symbol ("EOS", 4)};
+
+
+//maybe instead of 0 here needed some specific number of how much we want to get...
+
+
+//std::string s = std::to_string(42);
+
+string memo = "swap,0," + rebaliter.strpairid;
+
+send("swap.defi"_n, _self, tobuy, memo, "eosio.token"_n);  
+
+
+if (iterpair.reserve0.symbol == iter.answers[i].symbol) {
+
+//SEE VB LIITA SELLEGA MIS ON YLEVAL!
+
+double newprice = static_cast<double>(tobuy.amount + iterpair.reserve1.amount * 10000) / iterpair.reserve0.amount * rebaliter.decimals;
+
+double tokensbought = tobuy.amount / newprice;
+
+auto existing = rebaltab.find( iter.answers[i].symbol.code().raw() );
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokeninfund    += tokensbought;
+
+}
+
+
+}
+
+//FUNCTION MIS SELLIB OSTAB ! LEFT HERE
 
 
 
+}
 
 
+//SEPARATE LOOP TO BUY KUNA ALGUSES PEAB SELLIMA MUIDU POLE EOST ET OSTA
+
+//SAaB FLOATIGA KORRUTADA AGA VAJA KORDAJA ALA 8 x 10, salvestatud tabelis 
+//SELL FIRST, 
+
+//const auto &iteralloc = alloctab.get( iter.answers[i].symbol}, "No percentage found for such token" );
+
+if (rebaliter.tokenperold > rebaliter.tokenpernew) {
+
+double diffpertosell = rebaliter.tokenperold - rebaliter.tokenpernew;
 
 
-//SELL FIRST
-
-const auto &iteralloc = alloctab.get( iter.answers[i].symbol}, "No percentage found for such token" );
-
-if (iteralloc.tokenpercur.amount > iteralloc.tokenpernew.amount) {
 
 
 
@@ -463,7 +649,7 @@ for (auto it = begin(vector); it != end(vector); ++it) {
 
 
 //SIIN KAKS ALUMIST COMMENTI MAHA JA rebalanci yleval
-check(false, iter.answers[1]);
+//check(false, iter.answers[1]);
 
 
 
@@ -474,6 +660,7 @@ check(false, iter.answers[1]);
 
 //CHECK IF THIS FUNC WORKS
 
+/*
 [[eosio::action]]
 void addtokens(vector <uint64_t> pairid, vector <symbol> symbol)
 {
@@ -860,8 +1047,6 @@ if ( to == get_self()){
 
 
 
-
-
 //UUS
 [[eosio::on_notify("dappservices::transfer")]]
 void issueetfdapp (name from, name to, asset quantity, const string memo)
@@ -988,7 +1173,7 @@ private:
 
      struct asset refundasset = {int64_t ((quantity.amount * iter->token.amount)/10000), iter->token.symbol};
 
-     send_back(to, from, refundasset, memo, iter->contract);  
+     send(to, from, refundasset, memo, iter->contract);  
 
 }
 
@@ -1211,7 +1396,7 @@ createetf(from, reward );
 }
 }
 
- void send_back(name from, name to, asset quantity, std::string memo, name contract) {
+ void send(name from, name to, asset quantity, std::string memo, name contract) {
     
       action(
       permission_level{get_self(),"active"_n},
