@@ -256,6 +256,11 @@ string strpairid;
 symbol token;
 
 name contract;
+
+double ratio;
+
+asset minamount
+
    
 auto primary_key() const { return pairid; }
 
@@ -361,20 +366,9 @@ const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
 
   for(int i=0; i < iter.answers.size(); i++){
 
-
-    //ADDING THE NEW PERCENTAGE TO THE TABLE
-    //what precision do we want
-    //FLOAT WOULD BE MUCH BETTER?
+//CALCULATING THE NEW ALLOCATION OF TOKENS
    double newpercentage = static_cast<double>iter.totalvote[i] / iter.sumofallopt;
 
-    //WHAT SYMBOL DO WE WANT? WE CAN PUT WHATEVER SYMBOL, BUt STILL BE ABLE TO QUERY BY SPECIFIC SYMBOL?
-
-    //TAKE THE SYMBOL FROM ANSWERS BUT CUSTOMIZE IT FOR LONGER DECIMALS? THEN THE ABOVE CAN BE MULTIPLIED WITH MORE NUMBERS TO MAKE SURE THAT INTEGER DOES NOTGET LOST.
-
-
-    //struct asset percasset = {int64_t (intperc), iter.answers[i].symbol};
-
-    //TRANSFORM THE ANSWERS FROM STRING TO SYM, MAKE THE SYM LONGEST POSSIBLE? 
     auto sym = iter.answers[i].symbol;
     rebaldatatab rebaltab(get_self(), _self.value);
     auto existing = rebaltab.find( sym.code().raw() );
@@ -394,78 +388,52 @@ const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
           }
 
 
-
-//CURRENT HINNA PÕHJAL tokenperold
-
-//kontrolli kas "swap.defi"_n.value) ok
-
-//WE HAVE A TABLE THAT HAS PAIRIDS LINKED WITH SYM
-//sympair sympairtab(get_self(), _self.value);
-
+//CALCULATING HOW MUCH TOKENS ARE WORTH IN EOS
 const auto &rebaliter = rebaltab.get(iter.answers[i].symbol, "No pairid for such symbol" );
-
 
 pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
 
-const auto &iterpair = pairtab.get(iterpairid.pairid, "No row with such pairid" );
-
-
-//tokinfuntab tokentab(get_self(), _self.value);
-
-//const auto &tokiter = tokentab.get( iter.answers[i].symbol, "No tokens found with such symbol" );
+const auto &iterpair = pairtab.get(rebaliter.pairid, "No row with such pairid" );
 
 
 if (iterpair.reserve0.symbol == iter.answers[i].symbol) {
 
-//SIIN VAJA TABELISSE SALVESTADA EOS VÄÄRTUSES AMOUNT
-
-//token in fund teha sama decimaliga kõigil? aga kuidas siis kui lahutamine v litmine, seal peaks ka tranformation toimuma?
-//struct asset eosworth = {int64_t (iterpair.price0_last * tokiter.tokensinfund), (iter.answers[i].symbol)};
-
-
-//EOSWORTH DECIMALID PEAKSID OLEMA SELLISED NAGU ON SELLEL TOKENIL. 
-//struct asset eosworth = {int64_t (iterpair.price0_last * rebaliter.tokensinfund.amount), (rebaliter.tokensinfund.symbol)};
-
 double eosworth = iterpair.price0_last * rebaliter.tokensinfund;
 
             auto existing = rebaltab.find( iter.answers[i].symbol.code().raw() );
-            rattab.modify(existing,name("cet.f"), [&]( auto& s ){
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
             s.tokenwortheos    = eosworth;
         });
-      
 
-//tokinfuntab tokentab(get_self(), _self.value);
+}
 
-// NEED ASSET TO DOUBLE, UINT64 TO DOUBLE/FLOAAT
+if (iterpair.reserve1.symbol == iter.answers[i].symbol) {
 
-//siis EOS price of token = price0_last
+double eosworth = iterpair.price1_last * rebaliter.tokensinfund;
 
-// SAAB LIHTSALT KORRUTADA AMOUNT * FLOATIGA, symbol j''b tokeni oma kuid tegelikult on EOS amount. 
+            auto existing = rebaltab.find( iter.answers[i].symbol.code().raw() );
+            rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+            s.tokenwortheos    = eosworth;
+        });
+
+}
+
+//END OF FIRST LOOP
 
 }
 
 
 //REPLACE TOTALEOSWORTH FROM PREVIOUS REBALACNING WITH 0
-
 totleostab eostable(_self, _self.value);
 totaleosworth soloiter;
 soloiter = eostable.get();
 
-//struct asset zeroeos = {int64_t (0), soloiter.tokenwortheos.symbol};
-
-//double zeroeos = 0;
-
 soloiter.eosworth = 0;
 
 
-//FIRST LOOP MIS ARVUTAB KUI PALJU ON TOTAL EOS WORTH 
-tokinfuntab tokentab(get_self(), _self.value);
-
-    for (auto iter = tokentab.begin(); iter != tokentab.end(); iter++)
+//LOOP CALCULATING TOTAL EOS WORTH OF TOKENS IN FUND
+    for (auto iter = rebaltab.begin(); iter != rebaltab.end(); iter++)
 {
-
-
-//kui saab siis selle ylesse et ei peaks uuesti kopima
 totleostab eostable(_self, _self.value);
 totaleosworth soloiter;
 soloiter = eostable.get();
@@ -475,15 +443,8 @@ soloiter.eosworth += iter->tokenwortheos;
 }
 
 
-//SIIA VAJA UUS LOOP MIS ALLOC TABELISSE ARVUTAB tokenperold
-
-
-//tokenperold OLEKS KA HEA FLOATIGA!!!! 
-
-// SIIN VÕTAB LOOBIKS NAGU ALGUSES õ  
-
-//
-
+//LOOP CALCULATING THE OLD PERCETAGE OF TOKENS IN FUND 
+//AND SELLING  / BUYING TOKENS FROM DEFIBOX
  for(int i=0; i < iter.answers.size(); i++){
 
 
@@ -500,15 +461,12 @@ rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
               s.tokenperold    = tokenperold;
  }
 
+//SELLING TOKENS
 if (rebaliter.tokenperold > rebaliter.tokenpernew) {
 
 double diffpertosell = rebaliter.tokenperold - rebaliter.tokenpernew;
 
 double perdiff = diffpertosell / rebaliter.tokenperold;
-
-//double newtokeninfund = rebaliter.tokeninfund - rebaliter.tokeninfund * perdiff;
-
-//double toselldoub = rebaliter.tokeninfund - newtokeninfund;
 
 double toselldoub = rebaliter.tokeninfund * perdiff;
 
@@ -516,19 +474,20 @@ struct asset tosell = {int64_t (toselldoub*rebaliter.decimals), rebaliter.toksym
 
 string memo = "swap,0," + rebaliter.strpairid;
 
+
+//ACTION THAT TRIGGERS SELLING
 send("swap.defi"_n, _self, tosell, memo, rebaliter.contract);  
 
+
+//ADJUSTING TOKENS IN FUND
 auto existing = rebaltab.find( iter.answers[i].symbol.code().raw() );
 rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
               s.tokeninfund    -= toselldoub;
 
-//action to trigger sell
-
  }
 
 
-for(int i=0; i < iter.answers.size(); i++){
-
+//BUYING TOKENS
 if (rebaliter.tokenperold < rebaliter.tokenpernew) {
 
 double diffpertobuy = rebaliter.tokenpernew - rebaliter.tokenperold;
@@ -539,22 +498,26 @@ double eosworthtobuy = rebaliter.tokenwortheos * perdiff;
 
 struct asset tobuy = {int64_t (eosworthtobuy * 10000), symbol ("EOS", 4)};
 
-
-//maybe instead of 0 here needed some specific number of how much we want to get...
-
-
-//std::string s = std::to_string(42);
-
 string memo = "swap,0," + rebaliter.strpairid;
 
 send("swap.defi"_n, _self, tobuy, memo, "eosio.token"_n);  
 
-
+//ADJUST TOKENS IN FUND BASED THE PRICE AFTER BUYING 
 if (iterpair.reserve0.symbol == iter.answers[i].symbol) {
 
-//SEE VB LIITA SELLEGA MIS ON YLEVAL!
-
 double newprice = static_cast<double>(tobuy.amount + iterpair.reserve1.amount * 10000) / iterpair.reserve0.amount * rebaliter.decimals;
+
+double tokensbought = tobuy.amount / newprice;
+
+auto existing = rebaltab.find( iter.answers[i].symbol.code().raw() );
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokeninfund    += tokensbought;
+
+}
+//ADJUST TOKENS IN FUND BASED THE PRICE AFTER BUYING 
+if (iterpair.reserve1.symbol == iter.answers[i].symbol) {
+
+double newprice = static_cast<double>(tobuy.amount + iterpair.reserve0.amount * 10000) / iterpair.reserve1.amount * rebaliter.decimals;
 
 double tokensbought = tobuy.amount / newprice;
 
@@ -567,6 +530,70 @@ rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
 
 }
 
+//CHOOSE PRICE OF 1 EOSETF, LETS SAY IT IS 4 EOS, tokenpernew * 4 EOS equals to the EOS worth of those tokens. EOSworth divided by price of one token you 
+//get number of tokens . 
+
+//LOOP TO GET NEW RATIOS
+    for (auto iter = rebaltab.begin(); iter != rebaltab.end(); iter++)
+{
+
+const auto &rebaliter = rebaltab.get(iter.answers[i].symbol, "No pairid for such symbol" );
+
+double mineostokworth = rebaliter.tokenpernew * 4;
+
+// THOSE MAYBE NOT NEEDED
+pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
+
+const auto &iterpair = pairtab.get(rebaliter.pairid, "No row with such pairid" );
+
+//SIIA VAJA J2lle if reserve0 -- symbl
+
+if (iterpair.reserve0.symbol == iter.answers[i].symbol) {
+
+double mintokenamt = mineostokworth / iterpair.price0_last;
+
+struct asset minamount = {int64_t (rebaliter.decimals * mintokenamt), rebaliter.token};
+
+auto existing = rebaltab.find( iter.answers[i].symbol.code().raw() );
+
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.minamount    = minamount;
+
+}
+
+}
+
+if (iterpair.reserve1.symbol == iter.answers[i].symbol) {
+
+double mintokenamt = mineostokworth / iterpair.price1_last;
+
+struct asset minamount = {int64_t (rebaliter.decimals * mintokenamt), rebaliter.token};
+
+auto existing = rebaltab.find( iter.answers[i].symbol.code().raw() );
+
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.minamount    = minamount;
+
+}
+
+}
+
+//LOOP TO GET NEW RATIOS CLOSE
+}
+
+
+//
+
+//getting MINAMOUNT
+
+// pricelast x the percentage
+
+double mintokens = 
+
+asset minamount = 
+
+
+
 //FUNCTION MIS SELLIB OSTAB ! LEFT HERE
 
 
@@ -574,25 +601,7 @@ rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
 }
 
 
-//SEPARATE LOOP TO BUY KUNA ALGUSES PEAB SELLIMA MUIDU POLE EOST ET OSTA
-
-//SAaB FLOATIGA KORRUTADA AGA VAJA KORDAJA ALA 8 x 10, salvestatud tabelis 
-//SELL FIRST, 
-
 //const auto &iteralloc = alloctab.get( iter.answers[i].symbol}, "No percentage found for such token" );
-
-if (rebaliter.tokenperold > rebaliter.tokenpernew) {
-
-double diffpertosell = rebaliter.tokenperold - rebaliter.tokenpernew;
-
-
-
-
-
-
-
-}
-
 
 
 
@@ -609,7 +618,6 @@ double diffpertosell = rebaliter.tokenperold - rebaliter.tokenpernew;
 //SIIS SALVESTA PERC TABELISSE
 //SIIS KUI SELL VÕTA TABLELIST KUS TOKENI ARV
 //KUI BUY VÕTA PERC FROM TOTAL EOS
-   vector[i].doSomething();
 
 }
 
