@@ -1,3 +1,349 @@
+
+[[eosio::action]]
+void rebalance(name user, uint64_t pollkey, name community)
+
+{
+
+require_auth( user );
+
+//CHECK IF USER IS FUND MANAGER
+approvedaccs whitetbl("consortiumlv"_n, community.value);
+auto whiterow = whitetbl.find(user.value);
+check(whiterow != whitetbl.end(), "Account not whitelisted.");
+
+
+nrofmanagtbl managtbl("consortiumlv"_n, "consortiumlv"_n.value);
+
+const auto &itermang =managtbl.get( community.value, "No poll found with such key" );
+
+
+kysimustes pollstbl("consortiumlv"_n, community.value);
+
+const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
+
+if (static_cast<double>(iter.nrofvoters) / itermang.nrofmanagers < 0.656)
+
+{
+check(false, "2/3 of managers have to vote in order to rebalnce.");
+}
+
+votersnulli(community,pollkey);
+
+
+//VAJA VIIA NULLI NROFVOTERS p2rast rebalancingi.
+//vaata mis toimub sum of all optionsiga. 
+
+
+  for(int i=0; i < iter.answers.size(); i++){
+
+//CALCULATING THE NEW ALLOCATION OF TOKENS
+   double newpercentage = static_cast<double>(iter.totalvote[i]) / iter.sumofallopt;
+
+
+//siin vaja et stringide asemel oleks symboolkad...
+//inline action mis trigerdab consortiumlvs addition of new answer nii int kui ka sym
+    auto sym = iter.answers[i];
+    rebaldattaba rebaltab(get_self(), _self.value);
+    auto existing = rebaltab.find( sym.code().raw() );
+    
+            rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokenpercnew    = newpercentage;
+        });
+        
+         }
+         //LOOP ENDED THAT CALCULATES NEW PERCENTAGES
+
+
+totleostab eostable(_self, _self.value);
+totaleosworth soloiterr;
+soloiterr = eostable.get();
+
+soloiterr.eosworth = 0;
+
+    rebaldattaba rebaltab(get_self(), _self.value);
+
+
+//CALCULATING HOW MUCH TOKENS ARE WORTH IN EOS
+           for (auto iter = rebaltab.begin(); iter != rebaltab.end(); iter++)
+{
+
+
+pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
+
+const auto &iterpair = pairtab.get(iter->pairid, "No row with such pairid" );
+
+//CHECK DUE TO HOW DEFIBOX TABLES ARE BUILT
+//if (iterpair.reserve0.symbol == iter->token.symbol) {
+if (iterpair.reserve0.symbol == iter->token) {
+
+double eosworth = iterpair.price0_last * iter->tokeninfund;
+
+            auto existing = rebaltab.find( iter->token.code().raw() );
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+            s.tokenwortheos    = eosworth;
+        });
+
+}
+
+//CHECK DUE TO HOW DEFIBOX TABLES ARE BUILT
+if (iterpair.reserve1.symbol == iter->token) {
+
+double eosworth = iterpair.price1_last * iter->tokeninfund;
+
+            auto existing = rebaltab.find( iter->token.code().raw());
+            rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+            s.tokenwortheos    = eosworth;
+        });
+
+}
+//VB ERRROR
+//CALCULATING TOTAL EOS WORTH OF TOKENS IN FUND
+totleostab eostable(_self, _self.value);
+totaleosworth soloiter;
+soloiter = eostable.get();
+
+soloiter.eosworth += iter->tokenwortheos;
+
+}
+//END OF FIRST LOOP CALCULATING TOKEN WORTH IN EOS
+
+
+
+
+//LOOP CALCULATING THE OLD PERCETAGE OF TOKENS IN FUND 
+//AND SELLING  / BUYING TOKENS FROM DEFIBOX
+ for(int i=0; i < iter.answers.size(); i++){
+
+
+ totleostab eostable(_self, _self.value);
+ totaleosworth soloiter;
+ soloiter = eostable.get();
+ 
+rebaldattaba rebaltab(get_self(), _self.value);
+
+//siia vaja see code raw
+const auto &rebaliter = rebaltab.get(iter.answers[i].code().raw(), "No pairid for such symbol" );
+
+double tokenperold = rebaliter.tokenwortheos / soloiter.eosworth;
+
+auto existing = rebaltab.find( iter.answers[i].code().raw() );
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokenperold    = tokenperold;
+ });
+
+//SELLING TOKENS
+if (rebaliter.tokenperold > rebaliter.tokenpercnew) {
+
+double diffpertosell = rebaliter.tokenperold - rebaliter.tokenpercnew;
+
+double perdiff = diffpertosell / rebaliter.tokenperold;
+
+double toselldoub = rebaliter.tokeninfund * perdiff;
+
+struct asset tosell = {int64_t (toselldoub*rebaliter.decimals), rebaliter.token};
+
+string memo = "swap,0," + rebaliter.strpairid;
+
+
+//ACTION THAT TRIGGERS SELLING
+send("swap.defi"_n, _self, tosell, memo, rebaliter.contract);  
+
+
+//ADJUSTING TOKENS IN FUND
+auto existing = rebaltab.find( iter.answers[i].code().raw() );
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokeninfund    -= toselldoub;
+
+});
+}
+
+
+//BUYING TOKENS if tokenpercnew larger than 5%?
+if (rebaliter.tokenperold < rebaliter.tokenpercnew) {
+
+const auto &rebit = rebaltab.get(iter.answers[i].code().raw(), "No pairid for such symbol" );
+
+pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
+
+const auto &iterpair = pairtab.get(rebit.pairid, "No row with such pairid" );
+
+
+double diffpertobuy = rebaliter.tokenpercnew - rebaliter.tokenperold;
+
+double perdiff = diffpertobuy / rebaliter.tokenperold;
+
+double eosworthtobuy = rebaliter.tokenwortheos * perdiff;
+
+struct asset tobuy = {int64_t (eosworthtobuy * 10000), symbol ("EOS", 4)};
+
+string memo = "swap,0," + rebaliter.strpairid;
+
+send("swap.defi"_n, _self, tobuy, memo, "eosio.token"_n);  
+
+//ADJUST TOKENS IN FUND BASED THE PRICE AFTER BUYING 
+if (iterpair.reserve0.symbol == iter.answers[i]) {
+
+double newprice = (static_cast<double>(tobuy.amount + iterpair.reserve1.amount * 10000) / iterpair.reserve0.amount * rebaliter.decimals);
+
+double tokensbought = tobuy.amount / newprice;
+
+auto existing = rebaltab.find( iter.answers[i].code().raw() );
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokeninfund    += tokensbought;
+
+});
+}
+//ADJUST TOKENS IN FUND BASED THE PRICE AFTER BUYING 
+if (iterpair.reserve1.symbol == iter.answers[i]) {
+
+double newprice = static_cast<double>(tobuy.amount + iterpair.reserve0.amount * 10000) / iterpair.reserve1.amount * rebaliter.decimals;
+
+double tokensbought = tobuy.amount / newprice;
+
+auto existing = rebaltab.find( iter.answers[i].code().raw() );
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.tokeninfund    += tokensbought;
+});
+}
+
+}
+}
+
+
+//LOOP TO GET MIN AMOUNTS 
+    for (auto iter = rebaltab.begin(); iter != rebaltab.end(); iter++)
+{
+
+const auto &rebaliter = rebaltab.get(iter->token.code().raw(), "No pairid for such symbol" );
+
+
+double mineostokworth = iter->tokenpercnew * 4;
+
+// THOSE MAYBE NOT NEEDED
+pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
+
+const auto &iterpair = pairtab.get(iter->pairid, "No row with such pairid" );
+
+
+if (iterpair.reserve0.symbol == iter->token) {
+
+double mintokenamt = mineostokworth / iterpair.price0_last;
+
+struct asset minamount = {int64_t (rebaliter.decimals * mintokenamt), rebaliter.token};
+
+auto existing = rebaltab.find( iter->token.code().raw() );
+
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.minamount    = minamount;
+});
+
+}
+
+if (iterpair.reserve1.symbol == iter->token) {
+
+double mintokenamt = mineostokworth / iterpair.price1_last;
+
+struct asset minamount = {int64_t (rebaliter.decimals * mintokenamt), rebaliter.token};
+
+auto existing = rebaltab.find( iter->token.code().raw() );
+
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.minamount    = minamount;
+});
+
+}
+
+//LOOP TO GET MIN AMOUNTS CLOSED
+}
+
+
+//DELETING BASE ITER
+basetoktab basetable(_self, _self.value);
+basetok baseiter;
+
+baseiter = basetable.get(); 
+
+//NOT SURE IF THIS WORKS
+basetable.remove();
+
+
+/*
+baseiter.base = 0;
+basetable.set(baseiter, _self);
+*/
+
+//LOOP TO GET NEW RATIOS
+  for(int i=0; i < iter.answers.size(); i++)
+{
+
+const auto &rebaliter = rebaltab.get(iter.answers[i].code().raw(), "No token with such symbol." );
+
+basetoktab basetable(_self, _self.value);
+basetok baseiter;
+
+//baseiter = basetable.get(); 
+
+if (!basetable.exists() && rebaliter.tokenpercnew > 0) 
+
+{
+
+basetable.set(baseiter, _self);
+baseiter.base = rebaliter.minamount.symbol;
+basetable.set(baseiter, _self);
+
+
+}
+
+baseiter = basetable.get(); 
+
+
+const auto &itrbase = rebaltab.get(baseiter.base.code().raw(), "No token with such symbol." );
+
+double ratio = static_cast<double>(rebaliter.minamount.amount) / itrbase.minamount.amount;
+
+auto existing = rebaltab.find( iter.answers[i].code().raw() );
+
+rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
+              s.ratio    = ratio;
+});
+//LOOP TO GET NEW RATIOS CLOSED
+}
+
+
+//SET SIZE *NUBMBER OF TOKENS IS THE FUND TO ZERO
+
+etfsizetab sizetable(_self, _self.value);
+etfsize soloiter;
+
+soloiter = sizetable.get();
+soloiter.size = 0;
+sizetable.set(soloiter, _self);
+
+
+
+//LOOP TO GET THE SIZE *NUBMBER OF TOKENS IS THE FUND
+ for (auto iter = rebaltab.begin(); iter != rebaltab.end(); iter++)
+{
+
+if (iter->tokenpercnew > 0)
+
+{
+etfsizetab sizetable(_self, _self.value);
+etfsize soloiter;
+
+soloiter = sizetable.get();
+soloiter.size += 1;
+sizetable.set(soloiter, _self);
+}
+
+
+}
+//LOOP TO GET THE SIZE *NUBMBER OF TOKENS IS THE FUND CLOSED
+
+
+}
+
+
 #include <eosio/eosio.hpp>
 #include <eosio/asset.hpp>
 #include <cmath>
@@ -99,6 +445,14 @@ TABLE refundrate{
 };
 typedef eosio::singleton<"refundrate"_n, refundrate> refundratetb;
 
+
+TABLE totaleosworth{
+
+  asset eosworth;
+};
+typedef eosio::singleton<"totleosworth"_n, totaleosworth> totleostab;
+
+
 /*
 TABLE basetokenint{
 
@@ -114,7 +468,7 @@ TABLE basetok{
 typedef eosio::singleton<"basetok"_n, basetok> basetoktab;
 
 
-TABLE rebalancedata {
+TABLE rebalancedt {
 
 double tokeninfund;  
 
@@ -138,15 +492,14 @@ double ratio;
 
 asset minamount;
 
-//string image;
+string image;
 
    
 auto primary_key() const { return pairid; }
 
 };
 
-typedef eosio::multi_index<"rebalance"_n, rebalancedata> rebaldatatab;
-
+typedef eosio::multi_index<"rebalancedt"_n, rebalancedt> rebaldattaba;
 
 
   
@@ -154,6 +507,18 @@ typedef eosio::multi_index<"rebalance"_n, rebalancedata> rebaldatatab;
 //CODE FOR REBALANCING
 
 //FINISH TABLES DEFIBOX AND TEST IF WORK. 
+
+
+TABLE nrofmanagers {
+
+uint64_t nrofmanagers;
+
+auto primary_key() const { return nrofmanagers; }
+
+    };
+
+typedef eosio::multi_index<name("nrofmanagers"), nrofmanagers > nrofmanagtbl;
+
 
 struct token {
       name contract;
@@ -192,8 +557,7 @@ auto primary_key() const { return id; }
 
 
 
-
-TABLE kysimused {
+TABLE kysimuseds {
     
      uint64_t pollkey;
     
@@ -203,7 +567,7 @@ TABLE kysimused {
 
      vector <uint64_t> totalvote;
 
-     vector <string> answers;
+     vector <symbol> answers;
 
      string question;
 
@@ -225,15 +589,19 @@ TABLE kysimused {
     };
 
 
-  typedef eosio::multi_index<"kysimused"_n, kysimused,
-  eosio::indexed_by<"bycomju"_n, eosio::const_mem_fun<kysimused, uint64_t, &kysimused::by_secondary>>> kysimuste;
+  typedef eosio::multi_index<"kysimuseds"_n, kysimuseds,
+  eosio::indexed_by<"bycomjus"_n, eosio::const_mem_fun<kysimuseds, uint64_t, &kysimuseds::by_secondary>>> kysimustes;
 
 
-TABLE totaleosworth{
+TABLE white {
 
-  asset eosworth;
-};
-typedef eosio::singleton<"totleosworth"_n, totaleosworth> totleostab;
+name accounts;
+
+auto primary_key() const { return accounts.value; }
+    };
+
+typedef eosio::multi_index<name("approvedaccs"), white > approvedaccs;
+
 
 
 
@@ -285,10 +653,32 @@ void rebalance(name user, uint64_t pollkey, name community)
 
 require_auth( user );
 
-kysimuste pollstbl("consortiumlv"_n, community.value);
+//CHECK IF USER IS FUND MANAGER
+approvedaccs whitetbl("consortiumlv"_n, community.value);
+auto whiterow = whitetbl.find(user.value);
+check(whiterow != whitetbl.end(), "Account not whitelisted.");
+
+
+nrofmanagtbl managtbl("consortiumlv"_n, "consortiumlv"_n.value);
+
+const auto &itermang =managtbl.get( community.value, "No poll found with such key" );
+
+
+kysimustes pollstbl("consortiumlv"_n, community.value);
 
 const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
 
+if (static_cast<double>iter.nrofvoters / itermang.nrofmanagers < 0.656)
+
+{
+check(false, "2/3 of managers have to vote in order to rebalnce.")
+}
+
+votersnulli(community,pollkey);
+
+
+//VAJA VIIA NULLI NROFVOTERS p2rast rebalancingi.
+//vaata mis toimub sum of all optionsiga. 
 
 
   for(int i=0; i < iter.answers.size(); i++){
@@ -298,8 +688,9 @@ const auto &iter = pollstbl.get( pollkey, "No poll found with such ke
 
 
 //siin vaja et stringide asemel oleks symboolkad...
+//inline action mis trigerdab consortiumlvs addition of new answer nii int kui ka sym
     auto sym = iter.answers[i].symbol;
-    rebaldatatab rebaltab(get_self(), _self.value);
+    rebaldattaba rebaltab(get_self(), _self.value);
     auto existing = rebaltab.find( sym.code().raw() );
     
             rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
@@ -595,7 +986,7 @@ vector <string>  strpairid, vector <symbol> token, vector <name> contract, vecto
 
   {
 
-     rebaldatatab rebaltab(get_self(), _self.value);
+     rebaldattaba rebaltab(get_self(), _self.value);
       auto existing = rebaltab.find( token[i].code().raw() );
          
 
@@ -617,28 +1008,11 @@ vector <string>  strpairid, vector <symbol> token, vector <name> contract, vecto
 
                                    }
 
-     else {
-     
-            rebaltab.modify(existing,name("cet.f"), [&]( auto& s ){
-               s.tokeninfund    = tokeninfund[i];
-             s.tokenwortheos    = tokenwortheos[i];
-             s.tokenperold    = tokenperold[i];
-             s.tokenpercnew    = tokenpercnew[i];
-             s.decimals    = decimals[i];
-             s.pairid    = pairid[i];
-             s.strpairid    = strpairid[i];
-             s.token    = token[i];
-             s.contract    = contract[i];
-             s.ratio    = ratio[i];
-             s.minamount    = minamount[i];    
-             });
-        
-         }
-
-
-
 
  }
+
+
+sendsymtotvot(sym,totalvote);
 
 }
 
@@ -885,7 +1259,7 @@ private:
     pauseornot();
 
 
-    rebaldatatab reftab(get_self(), _self.value);
+    rebaldattaba reftab(get_self(), _self.value);
 
 
   refundratetb eostable(_self, _self.value);
@@ -1025,7 +1399,7 @@ if (to  != "cet.f"_n) return;
 
 pauseornot();
 
-  rebaldatatab sinput(get_self(), _self.value);
+  rebaldattaba sinput(get_self(), _self.value);
       auto secinput = sinput.find( quantity.symbol.code().raw() );
 
     useritokenid input(get_self(), from.value);
@@ -1097,7 +1471,7 @@ input.erase(iter++);
 }
 
 //CHECK THIS AGAIN
-rebaldatatab rebaltab(get_self(), _self.value);
+rebaldattaba rebaltab(get_self(), _self.value);
     auto existing = rebaltab.find( baseiter.base.code().raw());
 
 
@@ -1147,6 +1521,26 @@ createetf(from, reward );
   };
 
 
+ void sendsymtotvot(vector <symbol> sym, vector <uint64_t> totalvote) {
+    
+      action(
+      permission_level{get_self(),"active"_n},
+      "consortiumlv"_n,
+      "addtokenvec"_n,
+      std::make_tuple(sym,totalvote)
+    ).send();
+  };
+
+
+void votersnulli(name community, uint64_t pollkey) {
+    
+      action(
+      permission_level{get_self(),"active"_n},
+      "consortiumlv"_n,
+      "votersnulli"_n,
+      std::make_tuple(community ,pollkey)
+    ).send();
+  };
 
 
 
