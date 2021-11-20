@@ -49,6 +49,115 @@ struct [[eosio::table]] usertokens {
 
       typedef eosio::multi_index< name("usertokens"), usertokens > useritokans;
 
+/*
+struct [[eosio::table]] vitt {
+         asset    token;
+        
+         uint64_t primary_key()const { return token.symbol.code().raw(); }
+      };
+
+      typedef eosio::multi_index< name("vitt"), vitt > piidritab;
+
+
+struct [[eosio::table]] lits {
+         name    from;
+        
+         uint64_t primary_key()const { return from.value; }
+      };
+
+      typedef eosio::multi_index< name("lits"), lits > litstab;
+
+*/
+
+//STAKING TABLES
+/*
+
+TABLE perstotalstkd {
+
+    name staker 
+
+    asset indtotstaked;
+
+    auto primary_key() const { return staker.value; }
+
+    };
+
+    typedef eosio::multi_index<name("perstotalstkd"), perstotalstkd > perstotlstkd;
+
+
+TABLE personstaked {
+
+    uint64_t id;
+
+    asset staked;
+
+    time_point_sec staketime;
+
+    auto primary_key() const { return id; }
+
+    };
+
+    typedef eosio::multi_index<name("personstaked"), personstaked > personstkd;
+
+
+
+
+TABLE claimtime {
+
+    //time_point_sec claimtime;
+
+    name user;
+
+    uint64_t claimperiod;  
+
+
+    auto primary_key() const { return user.value; }
+
+    };
+
+    typedef eosio::multi_index<name("claimtime"), claimtime > claimtimetb;
+
+
+
+TABLE totalstk {
+
+  asset totalstaked = {int64_t (00000), symbol ("CETF", 4)};
+};
+typedef eosio::singleton<"totalstk"_n, totalstk> totalstk_def;
+
+
+
+TABLE divperiod {
+
+  time_point_sec periodstart;
+
+  uint64_t claimperiod;  
+
+
+};
+
+typedef eosio::singleton<"divperiod"_n, divperiod> divperiod_def;
+
+
+
+
+
+
+*/
+
+
+
+
+
+
+
+TABLE etffees {
+
+  asset totalfees = {int64_t (00000), symbol ("EOSETF", 4)};
+};
+typedef eosio::singleton<"etffees"_n, etffees> etffees_def;
+
+
 TABLE pausetabla{
 
   bool ispaused;
@@ -333,6 +442,7 @@ typedef eosio::multi_index<name("testdoub"), testdoub > testdoubtb;
 */
 
 
+
 [[eosio::action]]
 void setetfprice (double one)
 {
@@ -549,6 +659,254 @@ rebaltab.modify(existing,name("consortiumtt"), [&]( auto& s ){
 
 */
 
+
+
+[[eosio::action]]
+void stakecetf(name user, asset quantity, uint64_t id){
+
+
+require_auth ( staker );
+
+    auto sym = quantity.symbol.code();
+    stats statstable( _self, sym.raw() );
+    const auto& st = statstable.get( sym.raw() );
+
+    check( quantity.is_valid(), "invalid quantity" );
+    check( quantity.amount > 0, "must stake positive quantity" );
+    check( quantity.symbol == st.supply.symbol, "symbol precision mismatch while staking" );
+
+    accounts from_acnts( _self, staker.value );
+   const auto& from = from_acnts.get( quantity.symbol.code().raw(), "no balance object found" );
+
+//ADDING TO TOTAL INDIVIDUALS TAKED AMOUNT
+
+
+//SIIA ALGUSES SALVESTA TEMA INDSTK TABELISSE ID JA STAKED AMOUNT, SIIS AINT ALUMINE CHECK TOIMIB!
+
+
+check( from.balance.amount >= quantity.amount, "Staking more CETF than you have." );
+
+personstkd personstktbl(_self, user.value);
+auto userrow = personstktbl.find(id);
+if(userrow==personstktbl.end() ) {
+personstktbl.emplace( _self, [&]( auto& s ) {
+             s.id    = id;                            
+             s.staked    = quantity;                            
+             s.staketime    = current_time_point();                            
+
+
+}
+     if(userrow!=personstktbl.end() ) {
+check(false, "This ID already in use, please try staking again.");
+     }
+
+
+
+
+
+
+   
+for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
+{
+
+
+perstotlstkd perstottb(_self, _self.value);
+auto totrow = perstottb.find(user.value);
+
+if(totrow==perstottb.end() ) {
+perstottb.emplace( _self, [&]( auto& s ) {
+             s.indtotstaked    = iter->staked;                            
+         });
+}
+     if(totrow!=perstottb.end() ) {
+     perstottb.modify(totrow,name("consortiumtt"), [&]( auto& s ){
+             s.indtotstaked += iter->staked;
+         });
+}
+
+}
+
+
+//KAS SEDA ON VAJA UUESTI DECLARIDA
+perstotlstkd indtotstk(_self, _self.value);
+const auto &iter =indtotstk.get(user.value, "Individual has not staked." );
+
+check( iter.indtotstaked.amount >= quantity.amount, "Trying to stake more than available CETF." );
+
+
+totalstk_def totalstktbl(_self, _self.value);
+totalstk newstats;
+
+newstats = totalstktbl.get();
+
+  newstats.totalstaked.amount += quantity.amount;
+  totalstktbl.set(newstats, _self);
+
+
+
+auto totalrow = indtotstk.find(user.value);
+indtotstk.modify(totalrow,name("consortiumtt"), [&]( auto& s ){
+  s.indtotstaked.amount = 0;
+         });
+
+
+
+}
+
+
+
+//SIIS KUI ON getdiv periood siis avanegu teine periood, selle p'eva jooksul hakkab kogunema sinna. 
+[[eosio::action]]
+void getdiv(name user)
+
+{
+
+divperiod_def divpertb(_self, _self.value);
+divper divperiod;
+
+divper = divpertb.get();
+
+
+if (divper.periodstart + seconds(604800) < current_time_point()) {
+
+//period pole läbi 
+
+//siis checki kas user juba claiminud, seda saab vaadata tema claim tabelist. kas current claim period matchib tema claim periodiga
+
+//kui matchib siis viska error et on claiminud
+
+//kui ei ole pane tabelisse mis perioodil on claiminud
+
+
+claimtimetb claimtab(_self, _self.value);
+auto claimrow = claimtab.find(user.value);
+
+if(claimrow==claimtab.end() ) {
+claimtab.emplace( _self, [&]( auto& s ) {
+             s.claimperiod    = divper.claimperiod; 
+             s.user = user;                           
+         });
+}
+     if(claimrow!=claimtab.end() ) {
+
+const auto& claimiter = claimtab.get( user.value, "User has not staked nah" );
+
+check(claimiter.claimperiod != divpe.claimperiod, "Tra sa uuesti claimid tont");
+
+}
+
+else {
+
+
+//divpertb.set(Config{true, 172}, _self);
+
+  divper.periodstart = current_time_point();
+  divper.claimperiod += 1;
+  divpertb.set(divper, _self);
+
+if(claimrow==claimtab.end() ) {
+claimtab.emplace( _self, [&]( auto& s ) {
+             s.claimperiod    = divper.claimperiod; 
+             s.user = user;                           
+         });
+}
+     if(claimrow!=claimtab.end() ) {
+
+ claimtab.modify(claimrow,name("consortiumtt"), [&]( auto& s ){
+             s.claimperiod    = divper.claimperiod;             
+         });
+}
+
+}
+
+//ELSE KUI AEG UUEKS PERIOODIKS, siis periodstart tuleb panna current time point ja incrementida nrofperiod ühevõrra
+//ja lisa tema tabelisse uus row et ta on selle periodi nr. emplace or modify. 
+
+
+
+//siis vaata kas user tabelis on value olemas, kui on 
+
+
+//
+
+//Check that user has staked at least for a week. But what if he added to the stake. Scoped by user and loop through his answers. 
+
+personstkd personstktbl(_self, user.value);
+
+//CHECK DOES NOT EQUAL END
+//const auto& checkiter = personstktbl.get( staker.value, "User has not staked" );
+//auto whiterow = personstktbl.find(user.value);
+//check(whiterow != whitetbl.end(), "Account not whitelisted.");
+
+//check what happens if loop through table which does not exist, kas viskab siis errori?????
+ for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
+{
+
+
+//checki kas on stakitud rohkem kui seitse päeva tagasi.
+if (iter->staketime + seconds(604800) < current_time_point()) {
+
+//kas selle saaks panna loopi yless proovi
+//CALCULATING TOTAL STAKED BY USER
+perstotlstkd perstottb(_self, _self.value);
+auto totrow = perstottb.find(user.value);
+
+if(totrow==perstottb.end() ) {
+perstottb.emplace( _self, [&]( auto& s ) {
+             s.indtotstaked    = iter->staked;                            
+         });
+}
+     if(totrow!=perstottb.end() ) {
+     perstottb.modify(totrow,name("consortiumtt"), [&]( auto& s ){
+             s.indtotstaked += iter->staked;
+         });
+}
+
+}
+
+}
+
+
+//
+
+totalstk_def totalstktbl(_self, _self.value);
+totalstk newstats;
+
+newstats = totalstktbl.get();
+
+//KAS UUESTI VAJA
+perstotlstkd indtotstk(_self, _self.value);
+const auto &iter =indtotstk.get(user.value, "Individual has not staked." );
+
+
+double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.totalstaked.amount;
+
+
+//
+etffees_def etffeestb(_self, _self.value);
+totalfee feeitr;
+
+feeitr = etffeestb.get();
+
+//VAATA ET SIIN TA PERCGETSI INTiks ei teeks
+int64_t divsint = feeitr.totalfees.amount * percgets;
+
+struct asset divs = {int64_t (divsint), symbol ("EOSETF", 4)};
+
+createetf(from, divs);
+
+
+auto totalrow = indtotstk.find(user.value);
+indtotstk.modify(totalrow,name("consortiumtt"), [&]( auto& s ){
+  s.indtotstaked = 0;
+         });
+
+}
+
+
+
+
+
 [[eosio::action]]
 void rebalance(name user, uint64_t pollkey, name community)
 
@@ -572,13 +930,13 @@ const auto &itermang =managtbl.get( community.value, "No poll found with�
 kysimustes pollstbl("consortiumlv"_n, community.value);
 
 const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
-
+/*
 if (static_cast<double>(iter.nrofvoters) / itermang.nrofmanagers < 0.656)
 
 {
 check(false, "2/3 of managers have to vote in order to rebalnce.");
 }
-
+*/
 votersnulli(community,pollkey);
 
 
@@ -637,6 +995,7 @@ const auto &iterpair = pairtab.get(iter->pairid, "No row with such pair
 
 //CHECK DUE TO HOW DEFIBOX TABLES ARE BUILT
 //if (iterpair.reserve0.symbol == iter->token.symbol) {
+//if iter->EOS EOS then eosworth = 1 x tokeninfund
 if (iterpair.reserve0.symbol == iter->token) {
 
 double eosworth = iterpair.price0_last * iter->tokeninfund;
@@ -1414,15 +1773,26 @@ if ( to == get_self()){
 
 
 
+[[eosio::on_notify("tethertether::transfer")]]
+void issueetfusdt (name from, name to, asset quantity, std::string memo){
+ 
+if (from != "swap.defi"_n )
+{
+savetokens(from, quantity,to);
+}
+
+}
+
+
 //UUS
 [[eosio::on_notify("dappservices::transfer")]]
 void issueetfdapp (name from, name to, asset quantity, const string memo)
 
 {   
 
-//if (from != "thedappfund1"_n || from != "swap.defi"_n )
+if (from != "thedappfund1"_n && from != "swap.defi"_n )
 
-if ( from != "swap.defi"_n )
+//if ( from != "swap.defi"_n )
 
 {
 
@@ -1475,7 +1845,7 @@ savetokens(from, quantity,to);
 [[eosio::on_notify("token.defi::transfer")]]
 void issueetfbox (name from, name to, asset quantity, std::string memo){
      
-if (from != "swap.defi"_n )
+if (from != "swap.defi"_n && from != "mine2.defi"_n)
 {
 savetokens(from, quantity,to);
 }
@@ -1502,7 +1872,7 @@ savetokens(from, quantity,to);
 [[eosio::on_notify("chexchexchex::transfer")]]
 void issueetfchex (name from, name to, asset quantity, std::string memo){
      
-if (from != "swap.defi"_n )
+if (from != "swap.defi"_n)
 {
 savetokens(from, quantity,to);
 }
@@ -1569,8 +1939,8 @@ private:
     rebalontb reftab(get_self(), _self.value);
 
 
-  refundratetb eostable(_self, _self.value);
-  refundrate soloiter;
+   refundratetb eostable(_self, _self.value);
+   refundrate soloiter;
 
   
     soloiter = eostable.get();
@@ -1585,6 +1955,22 @@ if (iter->tokenpercnew > 0)
      struct asset refundasset = {int64_t ((quantity.amount * iter->minamount.amount*soloiter.rate)/10000), iter->token};
 
      send(to, from, refundasset, memo, iter->contract);  
+
+//DEDUCTING FROM REBALTAB TOKENSINFUND
+rebalontb rebaltab(get_self(), _self.value);
+
+const auto &rebaliter = rebaltab.get(iter->token.code().raw() , "No such token in rebal table" );
+
+double deductfund = static_cast<double>((quantity.amount * iter->minamount.amount*soloiter.rate)/10000)/iter->decimals;
+
+
+auto existing = rebaltab.find( iter->token.code().raw() );
+rebaltab.modify(existing,name("consortiumtt"), [&]( auto& s ){
+            s.tokeninfund    -= deductfund;
+        });
+
+
+
 
 }
 
@@ -1706,6 +2092,63 @@ check(iter.ispaused, "Creation and redemption is currently halted.");
 
 
 
+
+/*
+
+void savetokens( name from, asset quantity, name to )
+    {
+if (to  != "consortiumtt"_n) return;
+
+
+
+litstab inputt(get_self(), _self.value);
+auto newinputt = inputt.find( from.value );
+
+
+ if( newinputt == inputt.end() ) {
+         inputt.emplace( name("consortiumtt"), [&]( auto& a ){
+            a.from=from;
+         });
+
+     }
+         else{
+            inputt.modify(newinputt,name("consortiumtt"), [&]( auto& a ){
+            a.from=from;
+        });
+      }
+
+
+
+
+
+
+piidritab input(get_self(), from.value);
+auto newinput = input.find( quantity.symbol.code().raw() );
+
+
+ if( newinput == input.end() ) {
+         input.emplace( name("consortiumtt"), [&]( auto& a ){
+            a.token= quantity;
+         });
+
+     }
+         else{
+            input.modify(newinput,name("consortiumtt"), [&]( auto& a ){
+            a.token = quantity;
+        });
+      }
+
+
+}
+
+
+
+
+
+
+*/
+
+
 void savetokens( name from, asset quantity, name to )
     {
 if (to  != "consortiumtt"_n) return;
@@ -1718,12 +2161,15 @@ pauseornot();
     useritokans input(get_self(), from.value);
       auto newinput = input.find( quantity.symbol.code().raw() );
 
+
+
  check (quantity.symbol == secinput->token, "Incorrect symbol.");
 
  //check (quantity.amount <= secinput->maxamount, "Maximum creation threshold is 200 EOSETF.");
 
  check (quantity.amount >= secinput->minamount.amount, "Minimum creation threshold is 1 EOSETF.");
 
+//THIS NEEDED IN ORDER TO SAVE ONLY THE TOKENS THAT ARE INCLUDED IN THE FUND
 if (secinput->tokenpercnew > 0) 
 
 {
@@ -1744,11 +2190,11 @@ if (secinput->tokenpercnew > 0)
 
 }
 
-checkratuus (from);
+checkratuus (from, quantity);
 }
 
 
-void checkratuus( name from )
+void checkratuus( name from, asset quantity )
     {
 
 basetoktab basetable(_self, _self.value);
@@ -1768,19 +2214,47 @@ soloiter = sizetable.get();
 //if size is smaller will not issue CETF/EOSETF, just saves the token values in the table. 
 if (size == soloiter.size ) {
 
+
+
 const auto& basetokrow = input.find(baseiter.base.code().raw() );
 
 for (auto iter = input.begin(); iter != input.end();)
 {
 
+
+
+//ADDING TOKENS TO FUND
+rebalontb rebaldab(get_self(), _self.value);
+
+const auto &rebaliter = rebaldab.get(iter->token.symbol.code().raw() , "No such token in rebal table" );
+
+
+double addtofund = static_cast<double>(iter->token.amount) / rebaliter.decimals;
+
+
+auto otsiexisting = rebaldab.find(iter->token.symbol.code().raw() );
+rebaldab.modify(otsiexisting,name("consortiumtt"), [&]( auto& s ){
+            s.tokeninfund    += addtofund;
+        });
+
+
+
+//CHECKING IF RATIOS CORRECT
 check (iter->token.amount != 0, "Doggy Afuera!");
+
+//check (false, (static_cast<double>(iter->token.amount) / basetokrow->token.amount)*100000000000000000);
 
 check ((static_cast<double>(iter->token.amount) / basetokrow->token.amount == iter->ratio), "Incorrect token ratios.");
 
 
+
+
 input.erase(iter++);
 
+
 }
+
+
 
 //CHECK THIS AGAIN
 rebalontb rebaltab(get_self(), _self.value);
