@@ -661,11 +661,78 @@ rebaltab.modify(existing,name("consortiumtt"), [&]( auto& s ){
 
 
 
+
+
+
+[[eosio::action]]
+void unstakecetf(name user, vector <asset> quantity, vector <uint64_t> id){
+
+
+require_auth ( user );
+
+    auto sym = quantity.symbol.code();
+    stats statstable( _self, sym.raw() );
+    const auto& st = statstable.get( sym.raw() );
+
+    check( quantity.is_valid(), "invalid quantity" );
+    check( quantity.amount > 0, "must ustake positive quantity" );
+    check( quantity.symbol == st.supply.symbol, "symbol precision mismatch while staking" );
+
+    accounts from_acnts( _self, staker.value );
+   const auto& from = from_acnts.get( quantity.symbol.code().raw(), "no balance object found" );
+
+
+
+  for(int i=0; i < iter.quantity.size(); i++){
+
+personstkd personstktbl(_self, user.value);
+
+auto userrow = personstktbl.find(id[i]);
+
+const auto &iterone =personstktbl.get(id[i], "No such staking ID(1)." );
+
+check(iterone.staked.amount >= quantity.amount[i], "Unstaking too much CETF.");
+
+  personstktbl.modify(userrow,name("consortiumtt"), [&]( auto& s ){
+             s.staked.amount -= quantity.amount[i];
+         });
+
+
+const auto &itertwo =personstktbl.get(id[i], "No such staking ID(2)." );
+
+if (itertwo.staked.amount == 0) {
+
+   personstktbl.erase(usersrow);
+
+}
+
+}
+
+totalstk_def totalstktbl(_self, _self.value);
+totalstk newstats;
+
+newstats = totalstktbl.get();
+
+  newstats.totalstaked.amount -= quantity.amount;
+  totalstktbl.set(newstats, _self);
+
+
+}
+
+
+
+
+
+
+
+
+
+
 [[eosio::action]]
 void stakecetf(name user, asset quantity, uint64_t id){
 
 
-require_auth ( staker );
+require_auth ( user );
 
     auto sym = quantity.symbol.code();
     stats statstable( _self, sym.raw() );
