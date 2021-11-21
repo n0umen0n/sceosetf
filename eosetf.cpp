@@ -145,9 +145,12 @@ typedef eosio::singleton<"divperiod"_n, divperiod> divperiod_def;
 
 */
 
+//Calculates how much per week created and claimed
+TABLE feesadjust {
 
-
-
+  asset adjustcrtclm = {int64_t (00000), symbol ("EOSETF", 4)};
+};
+typedef eosio::singleton<"feesadjust"_n, feesadjust> feesadjust_def;
 
 
 
@@ -464,6 +467,27 @@ void setetfprice (double one)
 
 
 
+
+[[eosio::action]]
+void settotfeeamount (asset quantity)
+{
+require_auth( _self );
+//
+etffees_def totfeestb(_self, _self.value);
+totalfee totfeeiter;
+
+  if(!totfeestb.exists()){
+totfeestb.set(totfeeiter, _self);
+  }
+  else{
+    totfeeiter = totfeestb.get();
+  }
+  totfeeiter.totalfees = quantity;
+totfeestb.set(totfeeiter, _self);
+}
+
+
+
 [[eosio::action]]
 void setrefundrate (float rate)
 {
@@ -772,7 +796,7 @@ check(false, "This ID already in use, please try staking again.");
 
 
 
-   
+   //SEE LOOP TRANSFERISSE JA CHECK KAS TRANSFER AMOUNT EI OLE SUUREM KUI STAKED TOTAL , L]PUS STAKED TOTAL NULLI> 
 for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
 {
 
@@ -833,16 +857,9 @@ divper divperiod;
 
 divper = divpertb.get();
 
+//second table claiming frequency
 
 if (divper.periodstart + seconds(604800) < current_time_point()) {
-
-//period pole läbi 
-
-//siis checki kas user juba claiminud, seda saab vaadata tema claim tabelist. kas current claim period matchib tema claim periodiga
-
-//kui matchib siis viska error et on claiminud
-
-//kui ei ole pane tabelisse mis perioodil on claiminud
 
 
 claimtimetb claimtab(_self, _self.value);
@@ -866,6 +883,27 @@ else {
 
 
 //divpertb.set(Config{true, 172}, _self);
+
+
+
+
+feesadjust_def etffeestb(_self, _self.value);
+totalfeeadj feeitr;
+feeitr = etffeestb.get();
+//
+etffees_def totfeestb(_self, _self.value);
+totalfee totfeeiter;
+totfeestb.set(totfeeiter, _self);
+
+totfeeiter.totalfees.amount += feeitr.adjustcrtclm.amount;
+totfeestb.set(totfeeiter, _self);
+
+etffeestb.set(feeitr, _self);
+feeitr.adjustcrtclm.amount = 0;
+etffeestb.set(feeitr, _self);
+
+
+
 
   divper.periodstart = current_time_point();
   divper.claimperiod += 1;
@@ -952,8 +990,8 @@ double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.total
 //
 etffees_def etffeestb(_self, _self.value);
 totalfee feeitr;
-
 feeitr = etffeestb.get();
+
 
 //VAATA ET SIIN TA PERCGETSI INTiks ei teeks
 int64_t divsint = feeitr.totalfees.amount * percgets;
@@ -961,6 +999,16 @@ int64_t divsint = feeitr.totalfees.amount * percgets;
 struct asset divs = {int64_t (divsint), symbol ("EOSETF", 4)};
 
 createetf(from, divs);
+
+
+feesadjust_def etffeestbadj(_self, _self.value);
+totalfee feeitradj;
+etffeestbadj.set(feeitradj, _self);
+
+feeitradj.adjustcrtclm.amount -= divs.amount;
+etffeestbadj.set(feeitradj, _self);
+
+
 
 
 auto totalrow = indtotstk.find(user.value);
@@ -1737,7 +1785,27 @@ pausetab pausetable(_self, _self.value);
 }
 
 
+/*
 
+[[eosio::action]]
+void testloop( vector <uint64_t> id,
+                  asset maximum_supply )
+{
+    require_auth( _self );
+
+    auto sym = maximum_supply.symbol;
+    
+    stats statstable( _self, sym.code().raw() );
+
+    for (auto iter = statstable.begin(); iter != statstable.end(); iter++)
+    {
+check(false, "loobi sees");
+    }
+check(false, "loobi v2ljas");
+
+}
+
+*/
 [[eosio::action]]
 void create( const name&   issuer,
                     const asset&  maximum_supply )
@@ -2061,6 +2129,48 @@ void sub_balance( name owner, asset value )
    
 
       check( from.balance >= ( value ), "sub_balance: from.balance overdrawn balance" );
+
+
+
+
+
+personstkd personstktbl(_self, user.value);
+
+   //SEE LOOP TRANSFERISSE JA CHECK KAS TRANSFER AMOUNT EI OLE SUUREM KUI STAKED TOTAL , L]PUS STAKED TOTAL NULLI> 
+for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
+{
+
+
+perstotlstkd perstottb(_self, _self.value);
+auto totrow = perstottb.find(user.value);
+
+     if(totrow!=perstottb.end() ) {
+     perstottb.modify(totrow,name("consortiumtt"), [&]( auto& s ){
+             s.indtotstaked += iter->staked;
+         });
+}
+
+}
+
+
+perstotlstkd perstotkaks(_self, _self.value);
+auto totrowkaks = perstotkaks.find(user.value);
+
+if(totrowkaks!=perstottb.end() ) {
+
+const auto &iterone =perstottb.get(user.value, "No totstaked for user" );
+
+check( from.balance.amount - iterone.indtotstaked.amount >= ( value ), "sub_balance: unstake CETF to transfer" );
+
+
+perstotkaks.modify(totrowkaks,name("consortiumtt"), [&]( auto& s ){
+  s.indtotstaked.amount = 0;
+         });
+
+}
+
+
+
   
 
    from_acnts.modify( from, owner, [&]( auto& a ) {
@@ -2331,6 +2441,34 @@ rebalontb rebaltab(get_self(), _self.value);
 
 //CHANGE IF BASETOKROW CHANGES FROM DFS
 struct asset numberofetfs = {int64_t ((basetokrow->token.amount/iteraator->minamount.amount)*10000), symbol ("EOSETF", 4)};
+
+//save into etffees tabelisse
+
+
+feesadjust_def etffeestb(_self, _self.value);
+totalfee feeitr;
+etffeestb.set(feeitr, _self);
+
+refundratetb eostable(_self, _self.value);
+refundrate soloiter;
+soloiter = eostable.get();
+
+
+//CHECK ET SIIN CONFLICTI POLEKS INT FLOAT 
+//SEE Läheb hoopis kui tuleb uus period adjustment 
+feeitr.adjustcrtclm.amount += numberofetfs.amount * soloiter.rate;
+etffeestb.set(feeitr, _self);
+
+//M6tle kuidas see fees resettida
+
+
+basetoktab basetable(_self, _self.value);
+basetok baseiter;
+
+basetable.set(baseiter, _self);
+baseiter.base = iter->minamount.symbol;
+basetable.set(baseiter, _self);
+
 
 createetf(from, numberofetfs );
 
