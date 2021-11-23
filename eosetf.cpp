@@ -70,11 +70,11 @@ struct [[eosio::table]] lits {
 */
 
 //STAKING TABLES
-/*
 
-TABLE perstotalstkd {
 
-    name staker 
+TABLE prstotstkd {
+
+    name staker; 
 
     asset indtotstaked;
 
@@ -82,7 +82,7 @@ TABLE perstotalstkd {
 
     };
 
-    typedef eosio::multi_index<name("perstotalstkd"), perstotalstkd > perstotlstkd;
+    typedef eosio::multi_index<name("prstotstkd"), prstotstkd > perstotlskd;
 
 
 TABLE personstaked {
@@ -138,13 +138,6 @@ TABLE divperiod {
 
 typedef eosio::singleton<"divperiod"_n, divperiod> divperiod_def;
 
-
-
-
-
-
-*/
-
 //Calculates how much per week created and claimed
 TABLE feesadjust {
 
@@ -159,6 +152,10 @@ TABLE etffees {
   asset totalfees = {int64_t (00000), symbol ("EOSETF", 4)};
 };
 typedef eosio::singleton<"etffees"_n, etffees> etffees_def;
+
+
+
+
 
 
 TABLE pausetabla{
@@ -429,20 +426,6 @@ auto primary_key() const { return accounts.value; }
 typedef eosio::multi_index<name("approvedaccs"), white > approvedaccs;
 
 
-/*
-
-TABLE testdoub {
-
-name accounts;
-
-double theratio;
-
-auto primary_key() const { return accounts.value; }
-    };
-
-typedef eosio::multi_index<name("testdoub"), testdoub > testdoubtb;
-
-*/
 
 
 
@@ -469,12 +452,12 @@ void setetfprice (double one)
 
 
 [[eosio::action]]
-void settotfeeamount (asset quantity)
+void settotfeeamt (asset quantity)
 {
 require_auth( _self );
 //
 etffees_def totfeestb(_self, _self.value);
-totalfee totfeeiter;
+etffees totfeeiter;
 
   if(!totfeestb.exists()){
 totfeestb.set(totfeeiter, _self);
@@ -694,20 +677,25 @@ void unstakecetf(name user, vector <asset> quantity, vector <uint64_t> id){
 
 require_auth ( user );
 
-    auto sym = quantity.symbol.code();
+    
+
+
+
+  for(int i=0; i < quantity.size(); i++){
+
+
+    auto sym = quantity[i].symbol.code();
     stats statstable( _self, sym.raw() );
     const auto& st = statstable.get( sym.raw() );
 
-    check( quantity.is_valid(), "invalid quantity" );
-    check( quantity.amount > 0, "must ustake positive quantity" );
-    check( quantity.symbol == st.supply.symbol, "symbol precision mismatch while staking" );
+    check( quantity[i].is_valid(), "invalid quantity" );
+    check( quantity[i].amount > 0, "must ustake positive quantity" );
+    check( quantity[i].symbol == st.supply.symbol, "symbol precision mismatch while staking" );
 
-    accounts from_acnts( _self, staker.value );
-   const auto& from = from_acnts.get( quantity.symbol.code().raw(), "no balance object found" );
+    accounts from_acnts( _self, user.value );
+   const auto& from = from_acnts.get( quantity[i].symbol.code().raw(), "no balance object found" );
 
 
-
-  for(int i=0; i < iter.quantity.size(); i++){
 
 personstkd personstktbl(_self, user.value);
 
@@ -715,10 +703,10 @@ auto userrow = personstktbl.find(id[i]);
 
 const auto &iterone =personstktbl.get(id[i], "No such staking ID(1)." );
 
-check(iterone.staked.amount >= quantity.amount[i], "Unstaking too much CETF.");
+check(iterone.staked.amount >= quantity[i].amount, "Unstaking too much CETF.");
 
   personstktbl.modify(userrow,name("consortiumtt"), [&]( auto& s ){
-             s.staked.amount -= quantity.amount[i];
+             s.staked.amount -= quantity[i].amount;
          });
 
 
@@ -726,9 +714,7 @@ const auto &itertwo =personstktbl.get(id[i], "No such staking ID(2)." );
 
 if (itertwo.staked.amount == 0) {
 
-   personstktbl.erase(usersrow);
-
-}
+   personstktbl.erase(userrow);
 
 }
 
@@ -737,8 +723,13 @@ totalstk newstats;
 
 newstats = totalstktbl.get();
 
-  newstats.totalstaked.amount -= quantity.amount;
+  newstats.totalstaked.amount -= quantity[i].amount;
   totalstktbl.set(newstats, _self);
+
+
+}
+
+
 
 
 }
@@ -766,7 +757,7 @@ require_auth ( user );
     check( quantity.amount > 0, "must stake positive quantity" );
     check( quantity.symbol == st.supply.symbol, "symbol precision mismatch while staking" );
 
-    accounts from_acnts( _self, staker.value );
+    accounts from_acnts( _self, user.value );
    const auto& from = from_acnts.get( quantity.symbol.code().raw(), "no balance object found" );
 
 //ADDING TO TOTAL INDIVIDUALS TAKED AMOUNT
@@ -784,7 +775,7 @@ personstktbl.emplace( _self, [&]( auto& s ) {
              s.id    = id;                            
              s.staked    = quantity;                            
              s.staketime    = current_time_point();                            
-
+         });
 
 }
      if(userrow!=personstktbl.end() ) {
@@ -801,7 +792,7 @@ for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
 {
 
 
-perstotlstkd perstottb(_self, _self.value);
+perstotlskd perstottb(_self, _self.value);
 auto totrow = perstottb.find(user.value);
 
 if(totrow==perstottb.end() ) {
@@ -819,7 +810,7 @@ perstottb.emplace( _self, [&]( auto& s ) {
 
 
 //KAS SEDA ON VAJA UUESTI DECLARIDA
-perstotlstkd indtotstk(_self, _self.value);
+perstotlskd indtotstk(_self, _self.value);
 const auto &iter =indtotstk.get(user.value, "Individual has not staked." );
 
 check( iter.indtotstaked.amount >= quantity.amount, "Trying to stake more than available CETF." );
@@ -852,22 +843,26 @@ void getdiv(name user)
 
 {
 
+//GET WHEN CURRENT PERIOD STARTED
 divperiod_def divpertb(_self, _self.value);
-divper divperiod;
+divperiod divperiter;
 
-divper = divpertb.get();
-
-//second table claiming frequency
-
-if (divper.periodstart + seconds(604800) < current_time_point()) {
+divperiter = divpertb.get();
 
 
 claimtimetb claimtab(_self, _self.value);
 auto claimrow = claimtab.find(user.value);
 
+
+//second table claiming frequency
+//CHECK IF PERIOD IS STILL ON OR NEW HAS TO START
+if (divperiter.periodstart + seconds(604800) < current_time_point()) {
+
+
+
 if(claimrow==claimtab.end() ) {
 claimtab.emplace( _self, [&]( auto& s ) {
-             s.claimperiod    = divper.claimperiod; 
+             s.claimperiod    = divperiter.claimperiod; 
              s.user = user;                           
          });
 }
@@ -875,24 +870,30 @@ claimtab.emplace( _self, [&]( auto& s ) {
 
 const auto& claimiter = claimtab.get( user.value, "User has not staked nah" );
 
-check(claimiter.claimperiod != divpe.claimperiod, "Tra sa uuesti claimid tont");
+check(claimiter.claimperiod != divperiter.claimperiod, "Tra sa uuesti claimid tont");
 
 }
+
+
+}
+
+
+
+
+
+
+
 
 else {
 
 
 //divpertb.set(Config{true, 172}, _self);
-
-
-
-
 feesadjust_def etffeestb(_self, _self.value);
-totalfeeadj feeitr;
+feesadjust feeitr;
 feeitr = etffeestb.get();
 //
 etffees_def totfeestb(_self, _self.value);
-totalfee totfeeiter;
+etffees totfeeiter;
 totfeestb.set(totfeeiter, _self);
 
 totfeeiter.totalfees.amount += feeitr.adjustcrtclm.amount;
@@ -905,20 +906,20 @@ etffeestb.set(feeitr, _self);
 
 
 
-  divper.periodstart = current_time_point();
-  divper.claimperiod += 1;
-  divpertb.set(divper, _self);
+  divperiter.periodstart = current_time_point();
+  divperiter.claimperiod += 1;
+  divpertb.set(divperiter, _self);
 
 if(claimrow==claimtab.end() ) {
 claimtab.emplace( _self, [&]( auto& s ) {
-             s.claimperiod    = divper.claimperiod; 
+             s.claimperiod    = divperiter.claimperiod; 
              s.user = user;                           
          });
 }
      if(claimrow!=claimtab.end() ) {
 
  claimtab.modify(claimrow,name("consortiumtt"), [&]( auto& s ){
-             s.claimperiod    = divper.claimperiod;             
+             s.claimperiod    = divperiter.claimperiod;             
          });
 }
 
@@ -953,7 +954,7 @@ if (iter->staketime + seconds(604800) < current_time_point()) {
 
 //kas selle saaks panna loopi yless proovi
 //CALCULATING TOTAL STAKED BY USER
-perstotlstkd perstottb(_self, _self.value);
+perstotlskd perstottb(_self, _self.value);
 auto totrow = perstottb.find(user.value);
 
 if(totrow==perstottb.end() ) {
@@ -980,7 +981,7 @@ totalstk newstats;
 newstats = totalstktbl.get();
 
 //KAS UUESTI VAJA
-perstotlstkd indtotstk(_self, _self.value);
+perstotlskd indtotstk(_self, _self.value);
 const auto &iter =indtotstk.get(user.value, "Individual has not staked." );
 
 
@@ -989,7 +990,7 @@ double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.total
 
 //
 etffees_def etffeestb(_self, _self.value);
-totalfee feeitr;
+etffees feeitr;
 feeitr = etffeestb.get();
 
 
@@ -998,11 +999,11 @@ int64_t divsint = feeitr.totalfees.amount * percgets;
 
 struct asset divs = {int64_t (divsint), symbol ("EOSETF", 4)};
 
-createetf(from, divs);
+createetf(user, divs);
 
 
 feesadjust_def etffeestbadj(_self, _self.value);
-totalfee feeitradj;
+feesadjust feeitradj;
 etffeestbadj.set(feeitradj, _self);
 
 feeitradj.adjustcrtclm.amount -= divs.amount;
@@ -1013,7 +1014,7 @@ etffeestbadj.set(feeitradj, _self);
 
 auto totalrow = indtotstk.find(user.value);
 indtotstk.modify(totalrow,name("consortiumtt"), [&]( auto& s ){
-  s.indtotstaked = 0;
+  s.indtotstaked.amount = 0;
          });
 
 }
@@ -2134,15 +2135,15 @@ void sub_balance( name owner, asset value )
 
 
 
-personstkd personstktbl(_self, user.value);
+personstkd personstktbl(_self, owner.value);
 
    //SEE LOOP TRANSFERISSE JA CHECK KAS TRANSFER AMOUNT EI OLE SUUREM KUI STAKED TOTAL , L]PUS STAKED TOTAL NULLI> 
 for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
 {
 
 
-perstotlstkd perstottb(_self, _self.value);
-auto totrow = perstottb.find(user.value);
+perstotlskd perstottb(_self, _self.value);
+auto totrow = perstottb.find(owner.value);
 
      if(totrow!=perstottb.end() ) {
      perstottb.modify(totrow,name("consortiumtt"), [&]( auto& s ){
@@ -2153,14 +2154,14 @@ auto totrow = perstottb.find(user.value);
 }
 
 
-perstotlstkd perstotkaks(_self, _self.value);
-auto totrowkaks = perstotkaks.find(user.value);
+perstotlskd perstotkaks(_self, _self.value);
+auto totrowkaks = perstotkaks.find(owner.value);
 
-if(totrowkaks!=perstottb.end() ) {
+if(totrowkaks!=perstotkaks.end() ) {
 
-const auto &iterone =perstottb.get(user.value, "No totstaked for user" );
+const auto &tra =perstotkaks.get(owner.value, "No totstaked for user" );
 
-check( from.balance.amount - iterone.indtotstaked.amount >= ( value ), "sub_balance: unstake CETF to transfer" );
+check( from.balance.amount - tra.indtotstaked.amount >= ( value.amount ), "sub_balance: unstake CETF to transfer" );
 
 
 perstotkaks.modify(totrowkaks,name("consortiumtt"), [&]( auto& s ){
@@ -2446,7 +2447,7 @@ struct asset numberofetfs = {int64_t ((basetokrow->token.amount/iteraator->minam
 
 
 feesadjust_def etffeestb(_self, _self.value);
-totalfee feeitr;
+feesadjust feeitr;
 etffeestb.set(feeitr, _self);
 
 refundratetb eostable(_self, _self.value);
@@ -2461,14 +2462,14 @@ etffeestb.set(feeitr, _self);
 
 //M6tle kuidas see fees resettida
 
-
+/*
 basetoktab basetable(_self, _self.value);
 basetok baseiter;
 
 basetable.set(baseiter, _self);
 baseiter.base = iter->minamount.symbol;
 basetable.set(baseiter, _self);
-
+*/
 
 createetf(from, numberofetfs );
 
