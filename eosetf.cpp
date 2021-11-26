@@ -84,7 +84,7 @@ TABLE prstotstkd {
 
     typedef eosio::multi_index<name("prstotstkd"), prstotstkd > perstotlskd;
 
-
+/*
 TABLE personstaked {
 
     uint64_t id;
@@ -97,7 +97,28 @@ TABLE personstaked {
 
     };
 
-    typedef eosio::multi_index<name("personstaked"), personstaked > personstkd;
+    typedef eosio::multi_index<name("personstaked"), personstaked > perzonstkd;
+*/
+
+
+TABLE perzonstaked {
+
+    uint64_t id;
+
+    asset staked;
+
+    time_point_sec staketime;
+
+    uint64_t stakeperiod;  
+
+
+    auto primary_key() const { return id; }
+
+    };
+
+    typedef eosio::multi_index<name("persznstaked"), perzonstaked > perzonstkd;
+
+
 
 
 
@@ -186,6 +207,11 @@ TABLE totaleosworth{
 typedef eosio::singleton<"totleosworth"_n, totaleosworth> totleostab;
 
 
+TABLE clmperfreq {
+
+int64_t periodfreq;
+};
+typedef eosio::singleton<"clmperfreq"_n, clmperfreq> divperiodfrq_def;
 /*
 TABLE basetokenint{
 
@@ -450,6 +476,71 @@ void setetfprice (double one)
 
 
 
+[[eosio::action]]
+void setdivper (uint64_t claimperiod)
+{
+require_auth( _self );
+//
+divperiod_def divpertb(_self, _self.value);
+divperiod divperiter;
+
+  if(!divpertb.exists()){
+divpertb.set(divperiter, _self);
+  }
+  else{
+    divperiter = divpertb.get();
+  }
+  divperiter.periodstart = current_time_point();  
+  divperiter.claimperiod = claimperiod;
+
+divpertb.set(divperiter, _self);
+}
+
+
+
+[[eosio::action]]
+void setdivperfrq (int64_t claimfreq)
+{
+require_auth( _self );
+//
+divperiodfrq_def divperfqtb(_self, _self.value);
+clmperfreq divperfrqit;
+
+  if(!divperfqtb.exists()){
+divperfqtb.set(divperfrqit, _self);
+  }
+  else{
+    divperfrqit = divperfqtb.get();
+  }
+  divperfrqit.periodfreq = claimfreq;  
+
+divperfqtb.set(divperfrqit, _self);
+}
+
+
+
+
+
+
+[[eosio::action]]
+void settotstkd (asset quantity)
+{
+
+require_auth( _self );
+//
+totalstk_def totalstktbl(_self, _self.value);
+totalstk newstats;
+
+  if(!totalstktbl.exists()){
+totalstktbl.set(newstats, _self);
+  }
+  else{
+    newstats = totalstktbl.get();
+  }
+  newstats.totalstaked = quantity;
+totalstktbl.set(newstats, _self);
+}
+
 
 [[eosio::action]]
 void settotfeeamt (asset quantity)
@@ -469,6 +560,27 @@ totfeestb.set(totfeeiter, _self);
 totfeestb.set(totfeeiter, _self);
 }
 
+
+
+
+[[eosio::action]]
+void seteosetfadj (asset quantity)
+{
+
+require_auth( _self );
+
+feesadjust_def etffeestb(_self, _self.value);
+feesadjust feeitr;
+
+  if(!etffeestb.exists()){
+etffeestb.set(feeitr, _self);
+  }
+  else{
+    feeitr = etffeestb.get();
+  }
+  feeitr.adjustcrtclm = quantity;
+etffeestb.set(feeitr, _self);
+}
 
 
 [[eosio::action]]
@@ -509,8 +621,17 @@ void seteosworth (double eosworth)
   eostable.set(soloiter, _self);
 }
 
+[[eosio::action]]
+void delperstk (name user, uint64_t id)
+{
 
+perzonstkd personstktbl(_self, user.value);
 
+auto userrow = personstktbl.find(id);
+
+personstktbl.erase(userrow);
+
+}
 /*
 [[eosio::action]]
 void doubletest(asset one, asset two, name user)
@@ -697,7 +818,7 @@ require_auth ( user );
 
 
 
-personstkd personstktbl(_self, user.value);
+perzonstkd personstktbl(_self, user.value);
 
 auto userrow = personstktbl.find(id[i]);
 
@@ -750,12 +871,17 @@ void stakecetf(name user, asset quantity, uint64_t id){
 require_auth ( user );
 
     auto sym = quantity.symbol.code();
-    stats statstable( _self, sym.raw() );
-    const auto& st = statstable.get( sym.raw() );
+    //stats statstable( _self, sym.raw() );
+    //const auto& st = statstable.get( sym.raw() );
+
+    auto symcetf = symbol ("CETF", 4);
+
 
     check( quantity.is_valid(), "invalid quantity" );
     check( quantity.amount > 0, "must stake positive quantity" );
-    check( quantity.symbol == st.supply.symbol, "symbol precision mismatch while staking" );
+    //check( quantity.symbol == st.supply.symbol, "symbol precision mismatch while staking" );
+check( quantity.symbol == symcetf, "Only possible to stake CETF." );
+
 
     accounts from_acnts( _self, user.value );
    const auto& from = from_acnts.get( quantity.symbol.code().raw(), "no balance object found" );
@@ -768,18 +894,25 @@ require_auth ( user );
 
 check( from.balance.amount >= quantity.amount, "Staking more CETF than you have." );
 
-personstkd personstktbl(_self, user.value);
+
+divperiod_def divpertb(_self, _self.value);
+divperiod divperiter;
+divperiter = divpertb.get();
+
+perzonstkd personstktbl(_self, user.value);
 auto userrow = personstktbl.find(id);
 if(userrow==personstktbl.end() ) {
 personstktbl.emplace( _self, [&]( auto& s ) {
              s.id    = id;                            
              s.staked    = quantity;                            
-             s.staketime    = current_time_point();                            
+             s.staketime    = current_time_point();          
+             s.stakeperiod = divperiter.claimperiod;                  
          });
 
 }
      if(userrow!=personstktbl.end() ) {
 check(false, "This ID already in use, please try staking again.");
+
      }
 
 
@@ -797,7 +930,9 @@ auto totrow = perstottb.find(user.value);
 
 if(totrow==perstottb.end() ) {
 perstottb.emplace( _self, [&]( auto& s ) {
-             s.indtotstaked    = iter->staked;                            
+             s.indtotstaked    = iter->staked;
+             s.staker    = user;
+ 
          });
 }
      if(totrow!=perstottb.end() ) {
@@ -811,16 +946,18 @@ perstottb.emplace( _self, [&]( auto& s ) {
 
 //KAS SEDA ON VAJA UUESTI DECLARIDA
 perstotlskd indtotstk(_self, _self.value);
-const auto &iter =indtotstk.get(user.value, "Individual has not staked." );
+const auto &pede =indtotstk.get(user.value, "Individual has not staked." );
 
-check( iter.indtotstaked.amount >= quantity.amount, "Trying to stake more than available CETF." );
+//check(false, pede.indtotstaked.amount);
+
+check( from.balance.amount >= pede.indtotstaked.amount, "Trying to stake more than available CETF." );
 
 
 totalstk_def totalstktbl(_self, _self.value);
 totalstk newstats;
 
 newstats = totalstktbl.get();
-
+//TOTAL STAKED PEAKS OLEMA ACCORDING TO THE AMOUNT, TGLT NII KA OK
   newstats.totalstaked.amount += quantity.amount;
   totalstktbl.set(newstats, _self);
 
@@ -843,20 +980,24 @@ void getdiv(name user)
 
 {
 
+require_auth ( user );
+
+
 //GET WHEN CURRENT PERIOD STARTED
 divperiod_def divpertb(_self, _self.value);
 divperiod divperiter;
-
 divperiter = divpertb.get();
 
+divperiodfrq_def divperfqtb(_self, _self.value);
+clmperfreq divperfrqit;
+divperfrqit = divperfqtb.get();
 
 claimtimetb claimtab(_self, _self.value);
 auto claimrow = claimtab.find(user.value);
 
-
 //second table claiming frequency
 //CHECK IF PERIOD IS STILL ON OR NEW HAS TO START
-if (divperiter.periodstart + seconds(604800) < current_time_point()) {
+if (divperiter.periodstart + divperfrqit.periodfreq > current_time_point()) {
 
 
 
@@ -870,7 +1011,7 @@ claimtab.emplace( _self, [&]( auto& s ) {
 
 const auto& claimiter = claimtab.get( user.value, "User has not staked nah" );
 
-check(claimiter.claimperiod != divperiter.claimperiod, "Tra sa uuesti claimid tont");
+check(claimiter.claimperiod != divperiter.claimperiod, "New period not started yet.");
 
 }
 
@@ -888,20 +1029,8 @@ else {
 
 
 //divpertb.set(Config{true, 172}, _self);
-feesadjust_def etffeestb(_self, _self.value);
-feesadjust feeitr;
-feeitr = etffeestb.get();
-//
-etffees_def totfeestb(_self, _self.value);
-etffees totfeeiter;
-totfeestb.set(totfeeiter, _self);
 
-totfeeiter.totalfees.amount += feeitr.adjustcrtclm.amount;
-totfeestb.set(totfeeiter, _self);
 
-etffeestb.set(feeitr, _self);
-feeitr.adjustcrtclm.amount = 0;
-etffeestb.set(feeitr, _self);
 
 
 
@@ -937,12 +1066,14 @@ claimtab.emplace( _self, [&]( auto& s ) {
 
 //Check that user has staked at least for a week. But what if he added to the stake. Scoped by user and loop through his answers. 
 
-personstkd personstktbl(_self, user.value);
+perzonstkd personstktbl(_self, user.value);
 
 //CHECK DOES NOT EQUAL END
 //const auto& checkiter = personstktbl.get( staker.value, "User has not staked" );
 //auto whiterow = personstktbl.find(user.value);
 //check(whiterow != whitetbl.end(), "Account not whitelisted.");
+
+
 
 //check what happens if loop through table which does not exist, kas viskab siis errori?????
  for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
@@ -950,7 +1081,7 @@ personstkd personstktbl(_self, user.value);
 
 
 //checki kas on stakitud rohkem kui seitse päeva tagasi.
-if (iter->staketime + seconds(604800) < current_time_point()) {
+if (iter->staketime + divperfrqit.periodfreq  < current_time_point() && divperiter.claimperiod != iter->stakeperiod) {
 
 //kas selle saaks panna loopi yless proovi
 //CALCULATING TOTAL STAKED BY USER
@@ -982,7 +1113,7 @@ newstats = totalstktbl.get();
 
 //KAS UUESTI VAJA
 perstotlskd indtotstk(_self, _self.value);
-const auto &iter =indtotstk.get(user.value, "Individual has not staked." );
+const auto &iter =indtotstk.get(user.value, "Individual has not staked, or stake has not matured." );
 
 
 double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.totalstaked.amount;
@@ -994,8 +1125,12 @@ etffees feeitr;
 feeitr = etffeestb.get();
 
 
+
+
 //VAATA ET SIIN TA PERCGETSI INTiks ei teeks
-int64_t divsint = feeitr.totalfees.amount * percgets;
+double divsint = (feeitr.totalfees.amount * percgets);
+
+///SIIN PUCCIS
 
 struct asset divs = {int64_t (divsint), symbol ("EOSETF", 4)};
 
@@ -1004,10 +1139,69 @@ createetf(user, divs);
 
 feesadjust_def etffeestbadj(_self, _self.value);
 feesadjust feeitradj;
-etffeestbadj.set(feeitradj, _self);
+//etffeestbadj.set(feeitradj, _self);
+feeitradj = etffeestbadj.get();
+
 
 feeitradj.adjustcrtclm.amount -= divs.amount;
 etffeestbadj.set(feeitradj, _self);
+
+
+feeitradj = etffeestbadj.get();
+
+//check(false, feeitradj.adjustcrtclm.amount);
+
+
+/*
+feesadjust_def etffeestbb(_self, _self.value);
+feesadjust feeitruz;
+feeitruz = etffeestbb.get();
+//
+etffees_def totfeestb(_self, _self.value);
+etffees totfeeiter;
+totfeestb.set(totfeeiter, _self);
+*/
+
+//feeitradj = etffeestbadj.get();
+
+//etffeestb.set(feeitr, _self);
+
+
+
+//TIMES THE FEERATE HERE VIST
+//
+
+
+feeitr.totalfees.amount += feeitradj.adjustcrtclm.amount;
+etffeestb.set(feeitr, _self);
+
+
+feeitr = etffeestb.get();
+
+check(feeitr.totalfees.amount >= 0, "Total fees to be distr fell below 0.");
+
+
+
+
+//feeitradj = etffeestbadj.get();
+
+feeitradj.adjustcrtclm.amount = 0;
+etffeestbadj.set(feeitradj, _self);
+
+/*
+feesadjust_def etffeestbbb(_self, _self.value);
+feesadjust feeitruzz;
+
+etffeestbbb.set(feeitruz, _self);
+feeitruzz.adjustcrtclm.amount = 0;
+etffeestbbb.set(feeitruz, _self);
+*/
+
+
+
+
+
+
 
 
 
@@ -1787,6 +1981,26 @@ pausetab pausetable(_self, _self.value);
 
 
 /*
+[[eosio::action]]
+void s(bool ispaused)
+{
+
+  require_auth( _self );
+
+pausetab pausetable(_self, _self.value);
+  pausetabla soloiter;
+  if(!pausetable.exists()){
+    pausetable.set(soloiter, _self);
+  }
+  else{
+    soloiter = pausetable.get();
+  }
+  soloiter.ispaused = ispaused;
+  pausetable.set(soloiter, _self);
+}
+*/
+
+/*
 
 [[eosio::action]]
 void testloop( vector <uint64_t> id,
@@ -2129,13 +2343,16 @@ void sub_balance( name owner, asset value )
 
    
 
-      check( from.balance >= ( value ), "sub_balance: from.balance overdrawn balance" );
+check( from.balance >= ( value ), "sub_balance: from.balance overdrawn balance" );
+
+auto sym = symbol ("CETF", 4);
 
 
+if (value.symbol == sym)
 
+{
 
-
-personstkd personstktbl(_self, owner.value);
+perzonstkd personstktbl(_self, owner.value);
 
    //SEE LOOP TRANSFERISSE JA CHECK KAS TRANSFER AMOUNT EI OLE SUUREM KUI STAKED TOTAL , L]PUS STAKED TOTAL NULLI> 
 for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
@@ -2171,7 +2388,7 @@ perstotkaks.modify(totrowkaks,name("consortiumtt"), [&]( auto& s ){
 }
 
 
-
+}//CLOSING the IF SYM
   
 
    from_acnts.modify( from, owner, [&]( auto& a ) {
@@ -2457,7 +2674,7 @@ soloiter = eostable.get();
 
 //CHECK ET SIIN CONFLICTI POLEKS INT FLOAT 
 //SEE Läheb hoopis kui tuleb uus period adjustment 
-feeitr.adjustcrtclm.amount += numberofetfs.amount * soloiter.rate;
+feeitr.adjustcrtclm.amount += numberofetfs.amount * (1-soloiter.rate);
 etffeestb.set(feeitr, _self);
 
 //M6tle kuidas see fees resettida
