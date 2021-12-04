@@ -656,6 +656,7 @@ void getdiv(name user)
 
 {
 
+
 require_auth ( user );
 
 
@@ -668,66 +669,10 @@ divperiodfrq_def divperfqtb(_self, _self.value);
 clmperfreq divperfrqit;
 divperfrqit = divperfqtb.get();
 
-claimtimetb claimtab(_self, _self.value);
-auto claimrow = claimtab.find(user.value);
-
-//CHECK IF PERIOD IS STILL ON OR NEW HAS TO START
-if (divperiter.periodstart + divperfrqit.periodfreq > current_time_point()) {
-
-
-
-if(claimrow==claimtab.end() ) {
-claimtab.emplace( _self, [&]( auto& s ) {
-             s.claimperiod    = divperiter.claimperiod; 
-             s.user = user;                           
-         });
-}
-//NEW PERIOD NOT STARTED AND USER TRIES TO CLAIM AGAIN.
-     if(claimrow!=claimtab.end() ) {
-
-const auto& claimiter = claimtab.get( user.value, "User has not staked nah" );
-
-check(claimiter.claimperiod != divperiter.claimperiod, "New period not started yet.");
-
-}
-
-
-}
-
-
-
-
-
-
-
-//TRIGGERING START OF A NEW PERIOD
-else {
-
-
-  divperiter.periodstart = current_time_point();
-  divperiter.claimperiod += 1;
-  divpertb.set(divperiter, _self);
-
-if(claimrow==claimtab.end() ) {
-claimtab.emplace( _self, [&]( auto& s ) {
-             s.claimperiod    = divperiter.claimperiod; 
-             s.user = user;                           
-         });
-}
-     if(claimrow!=claimtab.end() ) {
-
- claimtab.modify(claimrow,name("consortiumtt"), [&]( auto& s ){
-             s.claimperiod    = divperiter.claimperiod;             
-         });
-}
-
-}
 
 
 perzonstkd personstktbl(_self, user.value);
-
-
-//CALCULATE HOW MUCH IN TOTAL USER HAS STAKED, SO HE COULD NOT STAKE MORE.
+//CALCULATE HOW MUCH IN TOTAL USER HAS STAKED.
  for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
 {
 
@@ -754,6 +699,13 @@ perstottb.emplace( _self, [&]( auto& s ) {
 
 
 
+claimtimetb claimtab(_self, _self.value);
+auto claimrow = claimtab.find(user.value);
+
+
+
+
+//GET THE PERC BASED ON HOW MUCH STAKED
 totalstk_def totalstktbl(_self, _self.value);
 totalstk newstats;
 
@@ -762,22 +714,42 @@ newstats = totalstktbl.get();
 
 //Multiple times declared, should be put on top?
 perstotlskd indtotstk(_self, _self.value);
-const auto &iter =indtotstk.get(user.value, "Individual has not staked, or stake has not matured." );
+const auto &iter =indtotstk.get(user.value, "Individual has not staked, or stake has not matured." );
 
 
 double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.totalstaked.amount;
+
+
+
+
+//CHECK IF PERIOD IS STILL ON OR NEW HAS TO START
+if (divperiter.periodstart + divperfrqit.periodfreq > current_time_point()) {
+
+
+
+if(claimrow==claimtab.end() ) {
+claimtab.emplace( _self, [&]( auto& s ) {
+             s.claimperiod    = divperiter.claimperiod; 
+             s.user = user;                           
+         });
+}
+//NEW PERIOD NOT STARTED AND USER TRIES TO CLAIM AGAIN.
+     if(claimrow!=claimtab.end() ) {
+
+const auto& claimiter = claimtab.get( user.value, "User has not staked nah" );
+
+check(claimiter.claimperiod != divperiter.claimperiod, "New period not started yet.");
+
+}
+
 
 etffees_def etffeestb(_self, _self.value);
 etffees feeitr;
 feeitr = etffeestb.get();
 
-
-
-
 double divsint = (feeitr.totalfees.amount * percgets);
 
-
-struct asset divs = {int64_t (divsint), symbol ("EOSETF", 4)};
+struct asset divs = {int64_t (divsint), symbol ("EOSETF", 4)};
 
 createetf(user, divs);
 
@@ -791,6 +763,39 @@ feeitradj.adjustcrtclm.amount -= divs.amount;
 etffeestbadj.set(feeitradj, _self);
 
 
+}
+
+
+//TRIGGERING START OF A NEW PERIOD
+else {
+
+
+  divperiter.periodstart = current_time_point();
+  divperiter.claimperiod += 1;
+  divpertb.set(divperiter, _self);
+
+if(claimrow==claimtab.end() ) {
+claimtab.emplace( _self, [&]( auto& s ) {
+             s.claimperiod    = divperiter.claimperiod; 
+             s.user = user;                           
+         });
+}
+     if(claimrow!=claimtab.end() ) {
+
+ claimtab.modify(claimrow,name("consortiumtt"), [&]( auto& s ){
+             s.claimperiod    = divperiter.claimperiod;             
+         });
+}
+
+}
+
+
+etffees_def etffeestb(_self, _self.value);
+etffees feeitr;
+feeitr = etffeestb.get();
+
+feesadjust_def etffeestbadj(_self, _self.value);
+feesadjust feeitradj;
 feeitradj = etffeestbadj.get();
 
 //HERE'S THE ADJUSTMENT
@@ -799,10 +804,21 @@ etffeestb.set(feeitr, _self);
 
 
 feeitr = etffeestb.get();
+double divsint = (feeitr.totalfees.amount * percgets);
+struct asset divs = {int64_t (divsint), symbol ("EOSETF", 4)};
 
+createetf(user, divs);
+
+//ADJUSTCRTCLM ADJUSTS TOTAL FEES WHEN NEW PERIOD STARTS.NUMBER IS POSITIVE IF MORE WAS CREATED EOSETF THAT CLAIMED.
+//feeitradj = etffeestbadj.get();
+
+feeitr = etffeestb.get();
+feeitr.totalfees.amount -= divsint;
+etffeestb.set(feeitr, _self);
+
+
+feeitr = etffeestb.get();
 check(feeitr.totalfees.amount >= 0, "Total fees to be distr fell below 0.");
-
-
 
 
 //PERIOD STARTS WITH 0
