@@ -27,7 +27,7 @@ Example, let's assume to create one ETF we need to send in three tokens:
 <br><b>10.0000 EMT</b> <br/>
 
 
-To check whether the amounts are correct, we read the current ratios (proportions to each other) in the rebalon table.
+To check whether the amounts are correct, we read the current ratios (proportions between tokens) in the rebalon table.
 
 Ratios are calculated in the following way:
 
