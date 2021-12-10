@@ -97,6 +97,31 @@ TABLE totalstk {
 typedef eosio::singleton<"totalstk"_n, totalstk> totalstk_def;
 
 
+//THESE FOR 
+TABLE eoscapt {
+
+  asset capturedeos = {int64_t (00000), symbol ("EOS", 4)};
+};
+typedef eosio::singleton<"eoscapt"_n, eoscapt> eoscaptura;
+
+TABLE totalbuy {
+
+  double amountbuy;
+};
+typedef eosio::singleton<"totalbuy"_n, totalbuy> totalbuy_tab;
+
+TABLE eosworthbuy {
+
+    double eosworthbuy;
+
+    symbol token;  
+
+    auto primary_key() const { return token.code().raw(); }
+
+    };
+
+    typedef eosio::multi_index<name("eosworthbuy"), eosworthbuy > eosworthbuytb;
+
 
 TABLE divperiod {
 
@@ -313,7 +338,7 @@ auto primary_key() const { return accounts.value; }
 typedef eosio::multi_index<name("approvedaccs"), white > approvedaccs;
 
 
-
+/*
 
 
 //SETS HOW MUCH 1 EOSETF SHOULD COST
@@ -487,9 +512,24 @@ void seteosworth (double eosworth)
 }
 
 
+*/
+[[eosio::action]]
+void setamtbuy ()
+{
+
+
+totalbuy_tab tottbb(_self, _self.value);
+totalbuy totiter;
+
+ 
+    totiter = tottbb.get();
+
+  totiter.amountbuy = 0;
+tottbb.set(totiter, _self);
 
 
 
+}
 //STAKE CETF IN ORDER TO RECEIVE FEES ACCUMULATED FOR CREATING EOSETF
 //EACH STAKE HAS SEPARATE ROW
 //
@@ -695,6 +735,8 @@ perstottb.emplace( _self, [&]( auto& s ) {
 
 }
 
+
+
 }
 
 
@@ -715,6 +757,8 @@ newstats = totalstktbl.get();
 //Multiple times declared, should be put on top?
 perstotlskd indtotstk(_self, _self.value);
 const auto &iter =indtotstk.get(user.value, "Individual has not staked, or stake has not matured." );
+
+check( iter.indtotstaked.amount != 0, "You have nothing staked.");
 
 
 double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.totalstaked.amount;
@@ -846,6 +890,7 @@ void rebalance(name user, uint64_t pollkey, name community)
 require_auth( user );
 
 //CHECK IF USER IS FUND MANAGER
+/*
 approvedaccs whitetbl("consortiumlv"_n, community.value);
 auto whiterow = whitetbl.find(user.value);
 check(whiterow != whitetbl.end(), "Account not whitelisted.");
@@ -854,7 +899,7 @@ check(whiterow != whitetbl.end(), "Account not whitelisted.");
 nrofmngtab managtbl("consortiumlv"_n, "consortiumlv"_n.value);
 
 const auto &itermang =managtbl.get( community.value, "No poll found with such key" );
-
+*/
 
 kysimustes pollstbl("consortiumlv"_n, community.value);
 
@@ -990,7 +1035,7 @@ const auto &rbaliter = rbtab.get(iter.answers[i].code().raw(), "No pairid�
 //SELLING TOKENS IF CURRENT PERCENTAGE IS LARGER THAN NEW
 if (rbaliter.tokenperold > rbaliter.tokenpercnew && rbaliter.tokenperold != 0) {
 
-double diffpertosell =rbaliter.tokenperold -rbaliter.tokenpercnew;
+double diffpertosell =rbaliter.tokenperold - rbaliter.tokenpercnew;
 
 double perdiff = diffpertosell /rbaliter.tokenperold;
 
@@ -1013,19 +1058,33 @@ adjusttokk(rbaliter.contract, rbaliter.token, rbaliter.decimals, rbaliter.tokenp
 //END LOOP THAT SELLS TOKENS THROUGH DEFIBOX
 
 
+rebalancetwoin(iter.answers);
 
-//LOOP THAT BUYS TOKENS THROUGH DEFIBOX
-for(int i=0; i < iter.answers.size(); i++){
+
+} //END OF REBAL PART 1
+
+[[eosio::action]]
+void rebalancetwo(vector <symbol> answers)
+
+{
+
+require_auth(_self);
+
+totalbuy_tab tottbb(_self, _self.value);
+totalbuy totiter;
+
+//LOOP THAT CALCULATES FOR HOW MUCH EOS WILL TOKENS BE BOUGHT AND SAVES THE AMOUNTS 
+for(int i=0; i < answers.size(); i++){
 
 
 rebalontb rebaltab(get_self(), _self.value);
 
-const auto &rebaliter = rebaltab.get(iter.answers[i].code().raw(), "No pairid for such symbol" );
+const auto &rebaliter = rebaltab.get(answers[i].code().raw(), "No pairid for such symbol" );
 
 
 if (rebaliter.tokenperold < rebaliter.tokenpercnew && rebaliter.tokenperold != 0) {
 
-const auto &rebit = rebaltab.get(iter.answers[i].code().raw(), "No pairid for such symbol" );
+const auto &rebit = rebaltab.get(answers[i].code().raw(), "No pairid for such symbol" );
 
 pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
 
@@ -1037,27 +1096,47 @@ double perdiff = diffpertobuy / rebaliter.tokenperold;
 
 double eosworthtobuy = rebaliter.tokenwortheos * perdiff;
 
-struct asset tobuy = {int64_t ((eosworthtobuy * 10000)*0.997), symbol ("EOS", 4)};
 
-string memo = "swap,0," + rebaliter.strpairid;
+//totalbuy_tab tottbb(_self, _self.value);
+//totalbuy totiter;
+
+  if(!tottbb.exists()){
+tottbb.set(totiter, _self);
+  }
+  else{
+    totiter = tottbb.get();
+  }
+  totiter.amountbuy += eosworthtobuy;
+tottbb.set(totiter, _self);
 
 
 
-//ACTION THAT TRIGGERS BUYING
-send(_self,"swap.defi"_n, tobuy, memo, "eosio.token"_n);  
 
-//SAVE AMOUNTS AFTER BUYING
-//INLINE ACTION NEEDED OTHERWISE send IS EXECUTED LAST AND THUS OLD BAlANCE IS SAVED
-adjusttokk(rebaliter.contract, rebaliter.token, rebaliter.decimals, rebaliter.tokenpercnew);
+    eosworthbuytb singblebuytb(_self, _self.value);
+    const auto& indrow = singblebuytb.find(rebaliter.token.code().raw() ); 
+
+     if (indrow == singblebuytb.end()) {
+
+    singblebuytb.emplace(_self, [&](auto& item) {
+    item.eosworthbuy = eosworthtobuy;
+    item.token = rebaliter.token;
+     });
+
+                                 }
+     else {
+
+       singblebuytb.modify( indrow, _self, [&](auto& contract) {
+            contract.eosworthbuy = eosworthtobuy;
+             });
+}  
 
 
 }
 
 
-//IN CASE CURRENT % WAS 0 and NEW VOTE ADDED IT
 if (rebaliter.tokenperold == 0 && rebaliter.tokenpercnew != 0) {
 
-const auto &rebit = rebaltab.get(iter.answers[i].code().raw(), "No pairid for such symbol" );
+const auto &rebit = rebaltab.get(answers[i].code().raw(), "No pairid for such symbol" );
 
 pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
 
@@ -1070,20 +1149,96 @@ soloiter = eostable.get();
  
 double eosworthtobuy = rebaliter.tokenpercnew * soloiter.eosworth;
 
-struct asset tobuy = {int64_t (eosworthtobuy * 10000), symbol ("EOS", 4)};
+
+
+
+//totalbuy_tab tottbb(_self, _self.value);
+//totalbuy totiter;
+
+  if(!tottbb.exists()){
+tottbb.set(totiter, _self);
+  }
+  else{
+    totiter = tottbb.get();
+  }
+  totiter.amountbuy += eosworthtobuy;
+tottbb.set(totiter, _self);
+
+
+
+
+    eosworthbuytb singblebuytb(_self, _self.value);
+    const auto& indrow = singblebuytb.find(rebaliter.token.code().raw() ); 
+
+     if (indrow == singblebuytb.end()) {
+
+    singblebuytb.emplace(_self, [&](auto& item) {
+    item.eosworthbuy = eosworthtobuy;
+    item.token = rebaliter.token;
+     });
+
+                                 }
+     else {
+
+       singblebuytb.modify( indrow, _self, [&](auto& contract) {
+            contract.eosworthbuy = eosworthtobuy;
+             });
+}  
+
+
+
+}
+
+
+
+}
+
+
+
+//LOOP THAT BUYS FROM DEFIBOX
+for(int i=0; i < answers.size(); i++){
+
+
+rebalontb rebaltablakas(get_self(), _self.value);
+
+const auto &rebaliter = rebaltablakas.get(answers[i].code().raw(), "No pairid for such symbol" );
+
+eoscaptura eoscapletb(_self, _self.value);
+eoscapt eoscapitr;
+
+eoscapitr = eoscapletb.get();
+
+if (rebaliter.tokenperold < rebaliter.tokenpercnew) {
+
+eosworthbuytb solobuytb(_self, _self.value);
+const auto &solobuyitr =solobuytb.get(rebaliter.token.code().raw(), "No such solobuy" );
+
+
+totiter = tottbb.get();
+
+double perctobuy = solobuyitr.eosworthbuy / totiter.amountbuy;
+
+//check (false, perctobuy * 10000)
+
+//check(false,eoscapitr.capturedeos.amount);
+
+double tobuydoub = static_cast<double>(eoscapitr.capturedeos.amount) * perctobuy;
+
+struct asset tobuy = {int64_t(tobuydoub), symbol ("EOS", 4)};
+
 
 string memo = "swap,0," + rebaliter.strpairid;
 
+//ACTION THAT TRIGGERS BUYING
 send(_self,"swap.defi"_n, tobuy, memo, "eosio.token"_n);  
 
 //SAVE AMOUNTS AFTER BUYING
 //INLINE ACTION NEEDED OTHERWISE send IS EXECUTED LAST AND THUS OLD BAlANCE IS SAVED
 adjusttokk(rebaliter.contract, rebaliter.token, rebaliter.decimals, rebaliter.tokenpercnew);
 
-}
 
 }
-//END LOOP THAT BUYS TOKENS THROUGH DEFIBOX
+}//END LOOP THAT BUYS FROM DEFIBOX 
 
 
 
@@ -1096,16 +1251,21 @@ rebalontb pedetb(get_self(), _self.value);
 
 const auto &rebaliter = pedetb.get(iter->token.code().raw(), "No pairid for such symbol" );
 
+/*
 //GET DESIRED PRICE FOR 1 EOSETF
 etfpricetb eostable(_self, _self.value);
 etfprice soloiter;
 soloiter = eostable.get();
-
-//GET HOW MUCH EOS WORTH SHOULD THAT TOKEN HAVE
-double mineostokworth = iter->tokenpercnew * soloiter.one;
-
+*/
 
 pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
+
+const auto &etfpair = pairtab.get(1232, "No row with such pairid" );
+
+
+//GET HOW MUCH EOS WORTH SHOULD THAT TOKEN HAVE
+double mineostokworth = iter->tokenpercnew * etfpair.price0_last;
+
 
 const auto &iterpair = pairtab.get(iter->pairid, "No row with such pairid" );
 
@@ -1209,13 +1369,13 @@ basetable.set(baseiter, _self);
 
 
 //LOOP TO GET NEW RATIOS (VERY CRUCIAL COMPONENT, RATIOS ENSURE THAT CORRECT AMOUNTS ARE SENT WHEN CREATING EOSETF)
-  for(int i=0; i < iter.answers.size(); i++)
+  for(int i=0; i < answers.size(); i++)
 {
 
 rebalontb geitb(get_self(), _self.value);
 
 
-const auto &rebaliter = geitb.get(iter.answers[i].code().raw(), "No token with such symbol." );
+const auto &rebaliter = geitb.get(answers[i].code().raw(), "No token with such symbol." );
 
 basetoktab basetable(_self, _self.value);
 basetok baseiter;
@@ -1226,7 +1386,7 @@ const auto &itrbase = geitb.get(baseiter.base.code().raw(), "No token with�
 
 double ratio = static_cast<double>(rebaliter.minamount.amount) / itrbase.minamount.amount;
 
-auto iterseitse = geitb.find( iter.answers[i].code().raw() );
+auto iterseitse = geitb.find( answers[i].code().raw() );
 
 geitb.modify(iterseitse,name("consortiumtt"), [&]( auto& s ){
               s.ratio    = ratio;
@@ -1244,6 +1404,26 @@ etfsize soloiter;
 soloiter = sizetable.get();
 soloiter.size = 0;
 sizetable.set(soloiter, _self);
+
+
+//SET CAPTURED EOS TO ZERO, IF NEW REBALANCE STARTS IT HAS TO BE ZERO. 
+eoscaptura litatb(_self, _self.value);
+eoscapt litaitr;
+
+litaitr = litatb.get();
+litaitr.capturedeos.amount = 0;
+litatb.set(litaitr, _self);
+
+
+
+
+totiter = tottbb.get();
+totiter.amountbuy = 0;
+tottbb.set(totiter, _self);
+
+
+
+
 
 
 
@@ -1269,6 +1449,11 @@ sizetable.set(soloiter, _self);
 //END LOOP TO GET THE SIZE *NUBMBER OF TOKENS IS THE FUND 
 
 
+
+
+
+
+
 }
 //REBALANCE FUNCTION END
 
@@ -1278,7 +1463,7 @@ sizetable.set(soloiter, _self);
 //FOR TESTING, BUT MAYBE GOOD TO HAVE JUST IN CASE THERE'S A BUG.
 [[eosio::action]]
 void modddtokens(vector <double> tokeninfund,
-vector <asset> minamount, vector <symbol> token)
+vector <asset> minamount, vector <symbol> token,vector <string> image )
 
 {
 
@@ -1298,12 +1483,32 @@ const auto& st = *existing;
             rebaltab.modify(st , name("consortiumtt"), [&]( auto& s ){
              s.tokeninfund = tokeninfund[i];
              s.minamount = minamount[i];
+                          s.image = image[i];
+
       
         });
         }
 
 }
 
+[[eosio::action]]
+void deltoken( vector <symbol> token, vector <uint64_t> totalvote, name community, int64_t pollkey, symbol sym )
+
+{
+
+  require_auth ( _self);
+
+
+
+     rebalontb rebaltab(_self, _self.value);
+      auto existing = rebaltab.find( sym.code().raw() );
+         
+   rebaltab.erase(existing);
+
+deltok(token,totalvote, community, pollkey);
+
+
+}
 
 
 
@@ -1525,6 +1730,159 @@ if ( to == get_self()){
    
 }
 
+
+
+/*
+
+[[eosio::on_notify("lptoken.defi::transfer")]]
+void saveetfstk (name from, name to, asset quantity, std::string memo){
+ 
+
+if (quantity.symbol == symbol("BOXAUJ", 0) && memo == ("deposit,1232") && to == ("consortiumtt"_n))
+{
+
+
+/*
+
+see funktsioon updatib perioodi kh, sama nagu see esimene. 
+
+tabel mis trakib kui palju see period jaotamisele l2heb
+
+personstk tabel sama, vb isegi lisa sama tabelisse mis juba prg eksisteerib ja tglt singletonidesse saab ka ju lisada. 
+totalstk samatabel lisa sinna
+
+
+GET CETF
+const int64_t interval = (200000000000);  SIIA MITU SEKUNDIT TAHAME ET YKS INTERVAL KESTAKS
+
+int64_t halvings =  (TOTALSEKONDS PASSED FROM START / interval);
+
+int64_t rewardint =  (800000); INITIAL SUM TO BE DISTRIBUTED PER PERIOD
+
+int64_t divider = pow( 2 , halvings);
+
+int64_t adjrewardint = rewardint/divider * PERCGETS KUI PALJU STAKED; 
+
+
+
+struct asset reward = {int64_t (adjrewardint*numberofetfs.amount/10000), symbol ("CETF", 4)};
+
+createetf(from, reward );
+
+
+FEED from defibox
+
+if defibox send to someone except US and the token is EOSETF, then do following
+
+see kellele ta saadab tema balancist vota 5 prosa maha, ja lisa see adjustcrtclm tabelisse 
+
+
+
+
+
+}
+
+
+
+    auto sym = quantity.symbol.code();
+    stats statstable( _self, sym.raw() );
+    const auto& st = statstable.get( sym.raw() );
+
+    check( quantity.is_valid(), "invalid quantity" );
+    check( quantity.amount > 0, "must stake positive quantity" );
+    check( quantity.symbol == st.supply.symbol, "symbol precision mismatch while staking" );
+
+    accounts from_acnts( _self, staker.value );
+   const auto& from = from_acnts.get( quantity.symbol.code().raw(), "no balance object found" );
+
+//ADDING TO TOTAL INDIVIDUALS TAKED AMOUNT
+
+
+
+
+    indstakud indtbl(_self, _self.value);
+    const auto& indrow = indtbl.find(staker.value); 
+
+     if (indrow == indtbl.end()) {
+
+    indtbl.emplace(_self, [&](auto& item) {
+    item.totalstaked = quantity;
+    item.staker = staker;
+     });
+
+       check( from.balance.amount >= quantity.amount, "Not enough GOVRN to stake (1)" );
+
+
+                                 }
+
+     else {
+
+       indtbl.modify( indrow, staker, [&](auto& contract) {
+            contract.totalstaked += quantity;
+             });
+
+  const auto& igor = indtbl.get( staker.value, "No individual stake table found" );
+
+  check( from.balance.amount >= igor.totalstaked.amount, "Not enough GOVRN to stake (2)" );
+
+
+          }
+
+   
+
+
+            personstkd personstktbl(_self, community.value);
+            const auto& personstkrow = personstktbl.find(staker.value); 
+                       
+             
+
+
+              if (personstkrow == personstktbl.end()) {
+
+                  personstktbl.emplace( _self, [&](auto& contract) {
+                  contract.staker = staker;
+                  contract.staked = quantity;
+                  });
+                                              }
+
+              else { 
+
+                   personstktbl.modify( personstkrow, staker, [&](auto& contract) { 
+                   contract.staked += quantity;
+                   });
+                   }
+                
+
+
+
+  comdata comtblt(_self, _self.value);
+  auto comrow = comtblt.find(community.value);
+
+  comtblt.modify( comrow, staker, [&](auto& contract) {
+            contract.staked += quantity;
+             });
+
+// ADDING TO TOTAL STAKED TABLE
+
+
+totalstk_def totalstktbl(_self, _self.value);
+  totalstk newstats;
+  if(!totalstktbl.exists()){
+    totalstktbl.set(newstats, _self);
+  }
+  else{
+    newstats = totalstktbl.get();
+  }
+  newstats.totalstaked += quantity;
+  totalstktbl.set(newstats, _self);
+
+
+}
+
+
+*/
+
+
 /*
 [[eosio::on_notify("token.defi::transfer")]]
 void minecapture (name from, name to, asset quantity, std::string memo){
@@ -1535,7 +1893,48 @@ check(false,"pede");
 }
 
 }
+
+
+
+
+
+//SET CAPTURED EOS TO ZERO, IF NEW REBALANCE STARTS IT HAS TO BE ZERO. 
+eoscaptura litatb(_self, _self.value);
+eoscapt litaitr;
+
+litaitr = litatb.get();
+litaitr.capturedeos.amount = 0;
+litatb.set(litaitr, _self);
+
+
+
 */
+
+
+
+
+[[eosio::on_notify("eosio.token::transfer")]]
+void captureeos (name from, name to, asset quantity, std::string memo){
+     
+if (from == "swap.defi"_n && to == _self)
+
+{
+
+eoscaptura etffeestb(_self, _self.value);
+eoscapt feeitr;
+
+  if(!etffeestb.exists()){
+etffeestb.set(feeitr, _self);
+  }
+  else{
+    feeitr = etffeestb.get();
+  }
+  feeitr.capturedeos += quantity;
+etffeestb.set(feeitr, _self);
+
+
+}
+}
 
 
 //ALL ON_NOTIFY ARE USED WHEN CREATING EOSETF, TO CHECK IF CORRECT AMOUNTS AND TOKENS ARE BEING SENT IN
@@ -2094,6 +2493,19 @@ createetf(from, reward );
   };
 
 
+
+ void deltok(vector <symbol> token, vector <uint64_t> totalvote, name community, uint64_t pollkey) {
+    
+      action(
+      permission_level{get_self(),"active"_n},
+      "consortiumlv"_n,
+      "deltok"_n,
+      std::make_tuple(token,totalvote,community,pollkey)
+    ).send();
+  };
+
+
+
 void votersnulli(name community, uint64_t pollkey) {
     
       action(
@@ -2126,8 +2538,15 @@ void votersnulli(name community, uint64_t pollkey) {
   };
 
 
+ void rebalancetwoin( vector <symbol> answers ) {
 
-
+      action(
+      permission_level{get_self(),"active"_n},
+      _self,
+      "rebalancetwo"_n,
+      std::make_tuple(answers)
+    ).send();
+  };
 
 
 };
