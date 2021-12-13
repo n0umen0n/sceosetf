@@ -133,9 +133,10 @@ TABLE divperiod {
 
 typedef eosio::singleton<"divperiod"_n, divperiod> divperiod_def;
 
+
 TABLE feesadjust {
 
-  asset adjustcrtclm = {int64_t (00000), symbol ("EOSETF", 4)};
+  asset adjustcrtclm = {int64_t (00000), symbol ("EOSETF", 4)};;
 };
 typedef eosio::singleton<"feesadjust"_n, feesadjust> feesadjust_def;
 
@@ -336,6 +337,29 @@ auto primary_key() const { return accounts.value; }
     };
 
 typedef eosio::multi_index<name("approvedaccs"), white > approvedaccs;
+
+[[eosio::action]]
+void seteosetfadj (asset quantity)
+{
+
+require_auth( _self );
+
+
+feesadjust_def etffeestb(_self, _self.value);
+feesadjust feeitr;
+
+//nobsfeedf etffeestb(_self, _self.value);
+//nobsfesad feeitr;
+
+  if(!etffeestb.exists()){
+etffeestb.set(feeitr, _self);
+  }
+  else{
+    feeitr = etffeestb.get();
+  }
+  feeitr.adjustcrtclm = quantity;
+etffeestb.set(feeitr, _self);
+}
 
 
 /*
@@ -717,7 +741,9 @@ perzonstkd personstktbl(_self, user.value);
 {
 
 
-if (iter->staketime + divperfrqit.periodfreq  < current_time_point() && divperiter.claimperiod != iter->stakeperiod) {
+//if (iter->staketime + divperfrqit.periodfreq  < current_time_point() && divperiter.claimperiod != iter->stakeperiod) {
+
+if (iter->staketime + divperfrqit.periodfreq  < current_time_point()) {
 
 perstotlskd perstottb(_self, _self.value);
 auto totrow = perstottb.find(user.value);
@@ -890,7 +916,7 @@ void rebalance(name user, uint64_t pollkey, name community)
 require_auth( user );
 
 //CHECK IF USER IS FUND MANAGER
-/*
+
 approvedaccs whitetbl("consortiumlv"_n, community.value);
 auto whiterow = whitetbl.find(user.value);
 check(whiterow != whitetbl.end(), "Account not whitelisted.");
@@ -899,7 +925,7 @@ check(whiterow != whitetbl.end(), "Account not whitelisted.");
 nrofmngtab managtbl("consortiumlv"_n, "consortiumlv"_n.value);
 
 const auto &itermang =managtbl.get( community.value, "No poll found with such key" );
-*/
+
 
 kysimustes pollstbl("consortiumlv"_n, community.value);
 
@@ -1264,7 +1290,7 @@ const auto &etfpair = pairtab.get(1232, "No row with such pairid" );
 
 
 //GET HOW MUCH EOS WORTH SHOULD THAT TOKEN HAVE
-double mineostokworth = iter->tokenpercnew * etfpair.price0_last;
+double mineostokworth = iter->tokenpercnew * etfpair.price1_last;
 
 
 const auto &iterpair = pairtab.get(iter->pairid, "No row with such pairid" );
@@ -1723,6 +1749,42 @@ if ( to == get_self()){
    retire (quantity,memo);
 
   }
+
+//IN CASE SOMEBODY PURCHASES FROM DEFIBOX THEY GET 95% FROM THE PURCHASED AMOUNT 5% GOES TO CETF HOLDERS. 
+if ( from == "swap.defi"_n && memo != "Defibox: withdraw" && quantity.symbol == symbol("EOSETF", 4) ){
+
+
+feesadjust_def etffeestb(_self, _self.value);
+feesadjust feeitr;
+
+
+feeitr = etffeestb.get();
+
+
+
+refundratetb eostable(_self, _self.value);
+refundrate soloiter;
+soloiter = eostable.get();
+
+//ADD TO THE SINGLETON THAT CALCULATES HOW MUCH FEE WAS ACCUMULATED DURING A PERIOD
+
+feeitr.adjustcrtclm.amount += (quantity.amount * (1-soloiter.rate));
+etffeestb.set(feeitr, _self);
+
+
+     int64_t intadjquan = static_cast<double>(quantity.amount) * soloiter.rate;
+
+     struct asset adjquantity = {int64_t (intadjquan), symbol ("EOSETF", 4)};
+
+     sub_balance( from, quantity );
+
+     add_balance( to, adjquantity, payer ); //*feerate
+
+
+
+
+}
+
   else{
      sub_balance( from, quantity );
    add_balance( to, quantity, payer );
