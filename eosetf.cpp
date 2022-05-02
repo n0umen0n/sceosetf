@@ -813,7 +813,7 @@ feesadjust feeitradj;
 feeitradj = etffeestbadj.get();
 
 
-indstkdetftb personstktbl(_self, user.value);
+perzonstkd personstktbl(_self, user.value);
 //CALCULATE HOW MUCH IN TOTAL USER HAS STAKED.
  for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
 {
@@ -823,7 +823,7 @@ indstkdetftb personstktbl(_self, user.value);
 
 if (iter->staketime + divperfrqit.periodfreq  < current_time_point()) {
 
-perstotstbx perstottb(_self, _self.value);
+perstotlskd perstottb(_self, _self.value);
 auto totrow = perstottb.find(user.value);
 
 if(totrow==perstottb.end() ) {
@@ -859,13 +859,13 @@ newstats = totalstktbl.get();
 
 
 //Multiple times declared, should be put on top?
-perstotstbx indtotstk(_self, _self.value);
+perstotlskd indtotstk(_self, _self.value);
 const auto &iter =indtotstk.get(user.value, "Individual has not staked, or stake has not matured." );
 
 check( iter.indtotstaked.amount != 0, "You have nothing staked.");
 
 
-double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.totstketf.amount;
+double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.totalstaked.amount;
 
 
 
@@ -2045,9 +2045,9 @@ divperiodfrq_def divperfqtb(_self, _self.value);
 clmperfreq divperfrqit;
 divperfrqit = divperfqtb.get();
 
-perstotlskd perstottb(_self, _self.value);
+perstotstbx perstottb(_self, _self.value);
 
-perzonstkd personstktbl(_self, user.value);
+indstkdetftb personstktbl(_self, user.value);
 //CALCULATE HOW MUCH IN TOTAL USER HAS STAKED.
  for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
 {
@@ -2105,7 +2105,7 @@ const auto &iter =perstottb.get(user.value, "Individual has not staked, or stake
 check( iter.indtotstaked.amount != 0, "You have nothing staked.");
 
 
-double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.totalstaked.amount;
+double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.totstketf.amount;
 
 
 
