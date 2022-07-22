@@ -2990,8 +2990,6 @@ struct asset numberofetfs = {int64_t ((basetokrow->token.amount/iteraator->minam
 feeitr.adjustcrtclm.amount += numberofetfs.amount * (1-soloiter.rate);
 etffeestb.set(feeitr, _self);
 
-//v6ta see maha
-struct asset mv = {int64_t ((basetokrow->token.amount/iteraator->minamount.amount*(soloiter.rate))*10000), symbol ("EOSETF", 4)};
 
 //ISSUE ETF
 createetf(from, numberofetfs );
