@@ -2146,7 +2146,9 @@ const int64_t secpassed = (300 * divperiter.claimperiod);
 int64_t halvings =  (secpassed / interval);
 
 // x4
-check( divperiter.claimperiod <= 100, "Rewards for liquidity provision have stopped.");
+
+//SIIA IF claimperiod teatud siis lõpeta rewardid. 
+check( divperiter.claimperiod <= 1000, "Rewards for liquidity provision have stopped.");
 
 
 //int64_t rewardint =  (1250000); //INITIAL SUM TO BE DISTRIBUTED PER PERIOD
@@ -2966,7 +2968,7 @@ input.erase(iter++);
 
 
 rebalontb rebaltab(get_self(), _self.value);
-    auto iteraator = rebaltab.find( baseiter.base.code().raw());
+auto iteraator = rebaltab.find( baseiter.base.code().raw());
 
 
 
@@ -2988,9 +2990,11 @@ struct asset numberofetfs = {int64_t ((basetokrow->token.amount/iteraator->minam
 feeitr.adjustcrtclm.amount += numberofetfs.amount * (1-soloiter.rate);
 etffeestb.set(feeitr, _self);
 
+
 //ISSUE ETF
 createetf(from, numberofetfs );
 
+/* ADD IN CASE WANT TO REWARD USERS FOR CREATING EOSETF
 auto sym = symbol ("CETF", 4);
 
 
@@ -3018,6 +3022,7 @@ struct asset reward = {int64_t (adjrewardint*numberofetfs.amount/10000), symbol 
 createetf(from, reward );
 
 }
+*/
 }
 }
 
