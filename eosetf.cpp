@@ -57,6 +57,20 @@ TABLE prstotstkd {
     typedef eosio::multi_index<name("prstotstkd"), prstotstkd > perstotlskd;
 
 
+
+    TABLE prstotstkdbx {
+
+    name staker; 
+
+    asset indtotstaked;
+
+    auto primary_key() const { return staker.value; }
+
+    };
+
+    typedef eosio::multi_index<name("prstotstkdbx"), prstotstkdbx > perstotstbx;
+
+
 TABLE perzonstaked {
 
     uint64_t id;
@@ -75,6 +89,28 @@ TABLE perzonstaked {
     typedef eosio::multi_index<name("persznstaked"), perzonstaked > perzonstkd;
 
 
+
+
+TABLE indstkdetf {
+
+    uint64_t id;
+
+    asset staked;
+
+    time_point_sec staketime;
+
+    uint64_t stakeperiod;  
+
+
+    auto primary_key() const { return id; }
+
+    };
+
+    typedef eosio::multi_index<name("indstkdetf"), indstkdetf > indstkdetftb;
+
+
+
+
 TABLE claimtime {
 
     name user;
@@ -90,11 +126,14 @@ TABLE claimtime {
 
 
 
-TABLE totalstk {
+TABLE totstk {
 
   asset totalstaked = {int64_t (00000), symbol ("CETF", 4)};
+
+  asset totstketf = {int64_t (0), symbol ("BOXAUJ", 0)};
+
 };
-typedef eosio::singleton<"totalstk"_n, totalstk> totalstk_def;
+typedef eosio::singleton<"totstk"_n, totstk> totstk_def;
 
 
 //THESE FOR 
@@ -197,14 +236,10 @@ TABLE basetok{
 };
 typedef eosio::singleton<"basetok"_n, basetok> basetoktab;
 
-TABLE etfprice{
-
-  double one;
-};
-typedef eosio::singleton<"etfprice"_n, etfprice> etfpricetb;
 
 
-//In this table tokeninfund should be UINT64 and token symbol is actually present in asset as such not needed separately to stare in SYMBOL TOKEN.
+
+//In this table tokeninfund should be UINT64 and token symbol is actually present in asset as such not needed separately to store in SYMBOL TOKEN.
 TABLE rebalon {
 
 double tokeninfund;  
@@ -291,8 +326,7 @@ auto primary_key() const { return id; }
 
   typedef eosio::multi_index<"pairs"_n, pair> pairs;
 
-
-
+//see nahh p2rast
 TABLE kysimuseds {
     
      uint64_t pollkey;
@@ -329,6 +363,34 @@ TABLE kysimuseds {
   eosio::indexed_by<"bycomjus"_n, eosio::const_mem_fun<kysimuseds, uint64_t, &kysimuseds::by_secondary>>> kysimustes;
 
 
+TABLE portfolios {
+    
+     uint64_t pollkey;
+    
+     name community;
+
+     name creator;
+
+     vector <uint64_t> totalvote;
+
+     vector <symbol> answers;
+
+     uint8_t nrofvoters = 0;
+
+     uint64_t sumofallopt = 0;
+
+    auto primary_key() const { return pollkey; }
+
+    uint64_t by_secondary( ) const { return community.value; }
+
+    };
+
+  typedef eosio::multi_index<"portfolios"_n, portfolios,
+  eosio::indexed_by<"bycomjus"_n, eosio::const_mem_fun<portfolios, uint64_t, &portfolios::by_secondary>>> portftb;
+
+
+
+
 TABLE white {
 
 name accounts;
@@ -338,52 +400,65 @@ auto primary_key() const { return accounts.value; }
 
 typedef eosio::multi_index<name("approvedaccs"), white > approvedaccs;
 
+
+
+
 [[eosio::action]]
-void seteosetfadj (asset quantity)
+void issuetoken ( name owner, asset quantity )
+    {
+        require_auth (_self);
+        require_recipient( owner );
+
+        
+        auto sym = quantity.symbol;
+        check( sym.is_valid(), "Invalid symbol name" );
+
+        auto sym_code_raw = sym.code().raw();
+
+        stats statstable( _self, sym_code_raw );
+        auto existing = statstable.find( sym_code_raw );
+        check( existing != statstable.end(), "Token with that symbol name does not exist - Please create the token before issuing" );
+
+        const auto& st = *existing;
+        
+        check( quantity.is_valid(), "Invalid quantity value" );
+        check( st.supply.symbol == quantity.symbol, "Symbol precision mismatch" );
+        check( st.max_supply.amount - st.supply.amount >= quantity.amount, "Quantity value cannot exceed the available supply" );
+
+        statstable.modify( st, name("consortiumtt"), [&]( auto& s ) {
+            s.supply += quantity;
+        });
+        
+        
+      
+       add_balance( owner, quantity, name("consortiumtt"));
+
+       //add_balance( owner, quantity, owner);
+    }
+
+
+[[eosio::action]]
+void settotstkd (asset totstketfbx, asset totstkcetf)
 {
 
 require_auth( _self );
+//
+totstk_def totalstktbl(_self, _self.value);
+totstk newstats;
 
-
-feesadjust_def etffeestb(_self, _self.value);
-feesadjust feeitr;
-
-//nobsfeedf etffeestb(_self, _self.value);
-//nobsfesad feeitr;
-
-  if(!etffeestb.exists()){
-etffeestb.set(feeitr, _self);
+  if(!totalstktbl.exists()){
+totalstktbl.set(newstats, _self);
   }
   else{
-    feeitr = etffeestb.get();
+    newstats = totalstktbl.get();
   }
-  feeitr.adjustcrtclm = quantity;
-etffeestb.set(feeitr, _self);
+  newstats.totstketf = totstketfbx;
+  newstats.totalstaked = totstkcetf;
+
+totalstktbl.set(newstats, _self);
 }
 
 
-/*
-
-
-//SETS HOW MUCH 1 EOSETF SHOULD COST
-[[eosio::action]]
-void setetfprice (double one)
-{
-
-  require_auth( _self );
-
-  etfpricetb eostable(_self, _self.value);
-  etfprice soloiter;
-
-  if(!eostable.exists()){
-    eostable.set(soloiter, _self);
-  }
-  else{
-    soloiter = eostable.get();
-  }
-  soloiter.one = one;
-  eostable.set(soloiter, _self);
-}
 
 
 //SET WHEN DIVIDEND DISTRIBUTION PERIOD STARTS AND WHICH PERIOD IS IT
@@ -431,28 +506,6 @@ divperfqtb.set(divperfrqit, _self);
 
 
 
-
-//SET HOW MUCH CETF IS STAKED IN TOTAL IN ORDER TO CLAIM DIVIDENDS
-[[eosio::action]]
-void settotstkd (asset quantity)
-{
-
-require_auth( _self );
-//
-totalstk_def totalstktbl(_self, _self.value);
-totalstk newstats;
-
-  if(!totalstktbl.exists()){
-totalstktbl.set(newstats, _self);
-  }
-  else{
-    newstats = totalstktbl.get();
-  }
-  newstats.totalstaked = quantity;
-totalstktbl.set(newstats, _self);
-}
-
-
 //SET HOW MUCH FEES HAVE BEEN ACCUMULATED (EOSETF)
 [[eosio::action]]
 void settotfeeamt (asset quantity)
@@ -495,7 +548,7 @@ etffeestb.set(feeitr, _self);
 etffeestb.set(feeitr, _self);
 }
 
-//SET FEE RATE FOR REDEMPTION
+//SET FEE RATE. 0.95
 [[eosio::action]]
 void setrefundrate (float rate)
 {
@@ -536,11 +589,12 @@ void seteosworth (double eosworth)
 }
 
 
-*/
+/* EI OLE VAJA
 [[eosio::action]]
 void setamtbuy ()
 {
 
+require_auth ( _self );
 
 totalbuy_tab tottbb(_self, _self.value);
 totalbuy totiter;
@@ -554,6 +608,8 @@ tottbb.set(totiter, _self);
 
 
 }
+*/
+
 //STAKE CETF IN ORDER TO RECEIVE FEES ACCUMULATED FOR CREATING EOSETF
 //EACH STAKE HAS SEPARATE ROW
 //
@@ -630,8 +686,8 @@ const auto &pede =indtotstk.get(user.value, "Individual has not staked." );
 
 check( from.balance.amount >= pede.indtotstaked.amount, "Trying to stake more than available CETF." );
 
-totalstk_def totalstktbl(_self, _self.value);
-totalstk newstats;
+totstk_def totalstktbl(_self, _self.value);
+totstk newstats;
 
 newstats = totalstktbl.get();
 newstats.totalstaked.amount += quantity.amount;
@@ -652,10 +708,25 @@ indtotstk.modify(totalrow,name("consortiumtt"), [&]( auto& s ){
 
 
 [[eosio::action]]
-void unstakecetf(name user, vector <asset> quantity, vector <uint64_t> id){
+void unstakecetf(name user, vector <asset> quantity, vector <uint64_t> id, name clmspecifier){
 
 
 require_auth ( user );
+
+
+
+check (clmspecifier == "eosetfeosetf"_n, "Wrong claiming specifier");
+claimtimetb claimtab(_self, clmspecifier.value);
+const auto& claimiter = claimtab.get( user.value, "User has not staked nah" );
+
+divperiod_def divpertb(_self, _self.value);
+divperiod divperiter;
+divperiter = divpertb.get();
+
+check(claimiter.claimperiod != divperiter.claimperiod, "Please don't claim next period, then you will be able to unstake.");
+
+
+
 
     
   for(int i=0; i < quantity.size(); i++){
@@ -695,8 +766,8 @@ if (itertwo.staked.amount == 0) {
 
 }
 
-totalstk_def totalstktbl(_self, _self.value);
-totalstk newstats;
+totstk_def totalstktbl(_self, _self.value);
+totstk newstats;
 
 newstats = totalstktbl.get();
 
@@ -716,7 +787,7 @@ newstats = totalstktbl.get();
 //FEES THAT ARE CLAIMED ARE FOR THE PREVIOUS PERIOD.
 //IF USER DOES NOT CLAIM THE FEES HE PARTIALLY LOSES OUT, EVEN THOUGH HIS PART THAT WAS NOT CLAIMED IS CARRIED OVER TO THE NEXT PERIOD.
 [[eosio::action]]
-void getdiv(name user)
+void getdiv(name user, name clmspecifier)
 
 {
 
@@ -724,7 +795,7 @@ void getdiv(name user)
 require_auth ( user );
 
 
-//GET WHEN CURRENT PERIOD STARTED
+//GET WHEN CURRENT PERIOD STARTED AND OTHER STATS
 divperiod_def divpertb(_self, _self.value);
 divperiod divperiter;
 divperiter = divpertb.get();
@@ -733,6 +804,13 @@ divperiodfrq_def divperfqtb(_self, _self.value);
 clmperfreq divperfrqit;
 divperfrqit = divperfqtb.get();
 
+etffees_def etffeestb(_self, _self.value);
+etffees feeitr;
+feeitr = etffeestb.get();
+
+feesadjust_def etffeestbadj(_self, _self.value);
+feesadjust feeitradj;
+feeitradj = etffeestbadj.get();
 
 
 perzonstkd personstktbl(_self, user.value);
@@ -765,17 +843,17 @@ perstottb.emplace( _self, [&]( auto& s ) {
 
 }
 
+check (clmspecifier == "eosetfeosetf"_n, "Wrong claiming specifier");
 
-
-claimtimetb claimtab(_self, _self.value);
+claimtimetb claimtab(_self, clmspecifier.value);
 auto claimrow = claimtab.find(user.value);
 
 
 
 
 //GET THE PERC BASED ON HOW MUCH STAKED
-totalstk_def totalstktbl(_self, _self.value);
-totalstk newstats;
+totstk_def totalstktbl(_self, _self.value);
+totstk newstats;
 
 newstats = totalstktbl.get();
 
@@ -810,23 +888,21 @@ const auto& claimiter = claimtab.get( user.value, "User has not staked nah" );
 
 check(claimiter.claimperiod != divperiter.claimperiod, "New period not started yet.");
 
+claimtab.modify(claimrow,name("consortiumtt"), [&]( auto& s ){
+             s.claimperiod    = divperiter.claimperiod;             
+         });
+
+
 }
 
 
-etffees_def etffeestb(_self, _self.value);
-etffees feeitr;
-feeitr = etffeestb.get();
+
 
 double divsint = (feeitr.totalfees.amount * percgets);
 
 struct asset divs = {int64_t (divsint), symbol ("EOSETF", 4)};
 
 createetf(user, divs);
-
-
-feesadjust_def etffeestbadj(_self, _self.value);
-feesadjust feeitradj;
-feeitradj = etffeestbadj.get();
 
 //ADJUSTCRTCLM ADJUSTS TOTAL FEES WHEN NEW PERIOD STARTS.NUMBER IS POSITIVE IF MORE WAS CREATED EOSETF THAT CLAIMED.
 feeitradj.adjustcrtclm.amount -= divs.amount;
@@ -857,16 +933,7 @@ claimtab.emplace( _self, [&]( auto& s ) {
          });
 }
 
-}
 
-
-etffees_def etffeestb(_self, _self.value);
-etffees feeitr;
-feeitr = etffeestb.get();
-
-feesadjust_def etffeestbadj(_self, _self.value);
-feesadjust feeitradj;
-feeitradj = etffeestbadj.get();
 
 //HERE'S THE ADJUSTMENT
 feeitr.totalfees.amount += feeitradj.adjustcrtclm.amount;
@@ -882,18 +949,37 @@ createetf(user, divs);
 //ADJUSTCRTCLM ADJUSTS TOTAL FEES WHEN NEW PERIOD STARTS.NUMBER IS POSITIVE IF MORE WAS CREATED EOSETF THAT CLAIMED.
 //feeitradj = etffeestbadj.get();
 
+/*
 feeitr = etffeestb.get();
 feeitr.totalfees.amount -= divsint;
 etffeestb.set(feeitr, _self);
+
+//PERIOD STARTS WITH 0
+feeitradj.adjustcrtclm.amount = 0;
+etffeestbadj.set(feeitradj, _self);
+
+*/
+feeitradj.adjustcrtclm.amount = (0 - divsint);
+etffeestbadj.set(feeitradj, _self);
+
+
+
+}
+
+
+
+
+ claimtab.modify(claimrow,name("consortiumtt"), [&]( auto& s ){
+             s.claimperiod    = divperiter.claimperiod;             
+         });
+
 
 
 feeitr = etffeestb.get();
 check(feeitr.totalfees.amount >= 0, "Total fees to be distr fell below 0.");
 
 
-//PERIOD STARTS WITH 0
-feeitradj.adjustcrtclm.amount = 0;
-etffeestbadj.set(feeitradj, _self);
+
 
 
 //THIS IS TABLE THAT TRACKS HOW MUCH INDIVIDUAL HAS STAKED.
@@ -915,6 +1001,17 @@ void rebalance(name user, uint64_t pollkey, name community)
 
 require_auth( user );
 
+
+//SET CAPTURED EOS TO ZERO, IF NEW REBALANCE STARTS IT HAS TO BE ZERO. 
+eoscaptura litatb(_self, _self.value);
+eoscapt litaitr;
+
+litaitr = litatb.get();
+litaitr.capturedeos.amount = 0;
+litatb.set(litaitr, _self);
+
+
+
 //CHECK IF USER IS FUND MANAGER
 
 approvedaccs whitetbl("consortiumlv"_n, community.value);
@@ -924,10 +1021,10 @@ check(whiterow != whitetbl.end(), "Account not whitelisted.");
 
 nrofmngtab managtbl("consortiumlv"_n, "consortiumlv"_n.value);
 
-const auto &itermang =managtbl.get( community.value, "No poll found with such key" );
-
+const auto &itermang =managtbl.get( community.value, "No manager nr table found." );
 
 kysimustes pollstbl("consortiumlv"_n, community.value);
+//portftb pollstbl("consortiumlv"_n, community.value);
 
 const auto &iter = pollstbl.get( pollkey, "No poll found with such key" );
 
@@ -1094,6 +1191,8 @@ void rebalancetwo(vector <symbol> answers)
 
 {
 
+//check (false, "pede");
+
 require_auth(_self);
 
 totalbuy_tab tottbb(_self, _self.value);
@@ -1252,7 +1351,6 @@ double tobuydoub = static_cast<double>(eoscapitr.capturedeos.amount) * perctobuy
 
 struct asset tobuy = {int64_t(tobuydoub), symbol ("EOS", 4)};
 
-
 string memo = "swap,0," + rebaliter.strpairid;
 
 //ACTION THAT TRIGGERS BUYING
@@ -1276,13 +1374,6 @@ rebalontb pedetb(get_self(), _self.value);
 {
 
 const auto &rebaliter = pedetb.get(iter->token.code().raw(), "No pairid for such symbol" );
-
-/*
-//GET DESIRED PRICE FOR 1 EOSETF
-etfpricetb eostable(_self, _self.value);
-etfprice soloiter;
-soloiter = eostable.get();
-*/
 
 pairs pairtab("swap.defi"_n, "swap.defi"_n.value);
 
@@ -1432,13 +1523,6 @@ soloiter.size = 0;
 sizetable.set(soloiter, _self);
 
 
-//SET CAPTURED EOS TO ZERO, IF NEW REBALANCE STARTS IT HAS TO BE ZERO. 
-eoscaptura litatb(_self, _self.value);
-eoscapt litaitr;
-
-litaitr = litatb.get();
-litaitr.capturedeos.amount = 0;
-litatb.set(litaitr, _self);
 
 
 
@@ -1517,6 +1601,29 @@ const auto& st = *existing;
 
 }
 
+
+
+[[eosio::action]]
+void usertok ( name from )
+
+{
+
+require_auth(_self);
+
+useritokans input(get_self(), from.value);
+
+for (auto iter = input.begin(); iter != input.end();)
+
+{
+
+input.erase(iter++);
+
+
+}
+
+}
+
+
 [[eosio::action]]
 void deltoken( vector <symbol> token, vector <uint64_t> totalvote, name community, int64_t pollkey, symbol sym )
 
@@ -1532,6 +1639,22 @@ void deltoken( vector <symbol> token, vector <uint64_t> totalvote, name communit
    rebaltab.erase(existing);
 
 deltok(token,totalvote, community, pollkey);
+
+
+}
+
+
+[[eosio::action]]
+void deltokoncet( symbol sym )
+
+{
+
+  require_auth ( _self);
+
+     rebalontb rebaltab(_self, _self.value);
+      auto existing = rebaltab.find( sym.code().raw() );
+         
+   rebaltab.erase(existing);
 
 
 }
@@ -1617,6 +1740,8 @@ pausetab pausetable(_self, _self.value);
 [[eosio::action]]
 void adjusttok( name contract, symbol token, int64_t decimals, double tokenpercnew  )
 {
+
+require_auth (_self);
 
 //KUI KÕIK SOLD SIIS TA FJUKOF KUNA SEE L2heb nulli ehk siis ei saa querida midagi.
 
@@ -1794,14 +1919,331 @@ etffeestb.set(feeitr, _self);
 
 
 
-/*
+
 
 [[eosio::on_notify("lptoken.defi::transfer")]]
 void saveetfstk (name from, name to, asset quantity, std::string memo){
  
-
+// deposit,1232 seda pole vaja 
 if (quantity.symbol == symbol("BOXAUJ", 0) && memo == ("deposit,1232") && to == ("consortiumtt"_n))
 {
+
+
+divperiod_def divpertb(_self, _self.value);
+divperiod divperiter;
+divperiter = divpertb.get();
+
+
+//
+//check (false, "pede");
+
+indstkdetftb personstktbl(_self, from.value);
+personstktbl.emplace( _self, [&]( auto& s ) {
+             s.id    = personstktbl.available_primary_key();;                            
+             s.staked    = quantity;                            
+             s.staketime    = current_time_point();          
+             s.stakeperiod = divperiter.claimperiod;                  
+         });
+
+
+
+totstk_def totalstktbl(_self, _self.value);
+totstk newstats;
+
+newstats = totalstktbl.get();
+newstats.totstketf.amount += quantity.amount;
+totalstktbl.set(newstats, _self);
+
+
+}
+
+}
+
+
+
+
+//
+[[eosio::action]]
+void unstakeetf(name user, vector <asset> quantity, vector <uint64_t> id, name clmspecifier)
+
+{
+
+require_auth ( user );
+
+
+check (clmspecifier == "cetfcetfcetf"_n, "Wrong claiming specifier");
+claimtimetb claimtab(_self, clmspecifier.value);
+const auto& claimiter = claimtab.get( user.value, "User has not staked nah" );
+
+divperiod_def divpertb(_self, _self.value);
+divperiod divperiter;
+divperiter = divpertb.get();
+
+check(claimiter.claimperiod != divperiter.claimperiod, "Please don't claim next period, then you will be able to unstake.");
+
+    
+for(int i=0; i < quantity.size(); i++){
+
+
+indstkdetftb personstktbl(_self, user.value);
+
+auto userrow = personstktbl.find(id[i]);
+
+const auto &iterone =personstktbl.get(id[i], "No such staking ID(1)." );
+
+check(iterone.staked.amount >= quantity[i].amount, "Unstaking too much BOXAUJ.");
+
+  personstktbl.modify(userrow,name("consortiumtt"), [&]( auto& s ){
+             s.staked.amount -= quantity[i].amount;
+         });
+
+send("consortiumtt"_n, user, quantity[i], "Returning LP tokens", "lptoken.defi"_n);  
+
+
+const auto &itertwo =personstktbl.get(id[i], "No such staking ID(2)." );
+
+if (itertwo.staked.amount == 0) {
+
+   personstktbl.erase(userrow);
+
+}
+
+totstk_def totalstktbl(_self, _self.value);
+totstk newstats;
+
+newstats = totalstktbl.get();
+
+  newstats.totstketf.amount -= quantity[i].amount;
+  totalstktbl.set(newstats, _self);
+
+
+}
+
+
+}
+
+
+
+
+[[eosio::action]]
+void getcetf(name user, name clmspecifier)
+
+{
+
+
+require_auth ( user );
+
+
+
+
+//GET WHEN CURRENT PERIOD STARTED
+divperiod_def divpertb(_self, _self.value);
+divperiod divperiter;
+divperiter = divpertb.get();
+
+divperiodfrq_def divperfqtb(_self, _self.value);
+clmperfreq divperfrqit;
+divperfrqit = divperfqtb.get();
+
+perstotstbx perstottb(_self, _self.value);
+
+indstkdetftb personstktbl(_self, user.value);
+//CALCULATE HOW MUCH IN TOTAL USER HAS STAKED.
+ for (auto iter = personstktbl.begin(); iter != personstktbl.end(); iter++)
+{
+
+//if (iter->staketime + divperfrqit.periodfreq  < current_time_point() && divperiter.claimperiod != iter->stakeperiod) {
+
+if (iter->staketime + divperfrqit.periodfreq  < current_time_point()) {
+
+
+//perstotstbx perstottb(_self, _self.value);
+auto totrow = perstottb.find(user.value);
+
+if(totrow==perstottb.end() ) {
+perstottb.emplace( _self, [&]( auto& s ) {
+             s.indtotstaked    = iter->staked;
+             s.staker    = user;
+                            
+         });
+}
+     if(totrow!=perstottb.end() ) {
+     perstottb.modify(totrow,name("consortiumtt"), [&]( auto& s ){
+             s.indtotstaked += iter->staked;
+         });
+}
+
+}
+
+
+
+}
+
+check (clmspecifier == "cetfcetfcetf"_n, "Wrong claiming specifier");
+
+
+claimtimetb claimtab(_self, clmspecifier.value);
+auto claimrow = claimtab.find(user.value);
+
+
+
+
+//GET THE PERC BASED ON HOW MUCH STAKED
+totstk_def totalstktbl(_self, _self.value);
+totstk newstats;
+
+newstats = totalstktbl.get();
+
+
+//Multiple times declared, should be put on top?
+//perstotlskd indtotstk(_self, _self.value);
+//const auto &iter =indtotstk.get(user.value, "Individual has not staked, or stake has not matured." );
+
+
+const auto &iter =perstottb.get(user.value, "Individual has not staked, or stake has not matured." );
+
+check( iter.indtotstaked.amount != 0, "You have nothing staked.");
+
+
+double percgets = static_cast<double>(iter.indtotstaked.amount) / newstats.totstketf.amount;
+
+
+
+
+//CHECK IF PERIOD IS STILL ON OR NEW HAS TO START
+if (divperiter.periodstart + divperfrqit.periodfreq > current_time_point()) {
+
+
+
+if(claimrow==claimtab.end() ) {
+claimtab.emplace( _self, [&]( auto& s ) {
+             s.claimperiod    = divperiter.claimperiod; 
+             s.user = user;                           
+         });
+}
+//NEW PERIOD NOT STARTED AND USER TRIES TO CLAIM AGAIN.
+     if(claimrow!=claimtab.end() ) {
+
+const auto& claimiter = claimtab.get( user.value, "User has not staked nah" );
+
+check(claimiter.claimperiod != divperiter.claimperiod, "New period not started yet.");
+
+claimtab.modify(claimrow,name("consortiumtt"), [&]( auto& s ){
+             s.claimperiod    = divperiter.claimperiod;             
+         });
+
+}
+
+
+
+//ISSUE CETF
+
+//const int64_t interval = (2629746);  SIIA MITU SEKUNDIT TAHAME ET YKS INTERVAL KESTAKS
+const int64_t interval = (1200);
+
+const int64_t secpassed = (300 * divperiter.claimperiod);
+
+int64_t halvings =  (secpassed / interval);
+
+// x4
+
+//SIIA IF claimperiod teatud siis lõpeta rewardid. 
+check( divperiter.claimperiod <= 1000, "Rewards for liquidity provision have stopped.");
+
+
+//int64_t rewardint =  (1250000); //INITIAL SUM TO BE DISTRIBUTED PER PERIOD
+
+int64_t rewardint =  (6666666); //INITIAL SUM TO BE DISTRIBUTED PER PERIOD
+
+int64_t divider = pow( 2 ,  halvings);
+
+//int64_t adjrewardint = rewardint/divider * percgets; 
+
+double adjrewardint = rewardint/static_cast<double>(divider) * percgets; 
+
+struct asset cetfreward = {int64_t (adjrewardint*10000), symbol ("CETF", 4)};
+
+
+createetf(user, cetfreward);
+
+
+
+
+}
+
+
+//TRIGGERING START OF A NEW PERIOD
+else {
+
+
+  divperiter.periodstart = current_time_point();
+  divperiter.claimperiod += 1;
+  divpertb.set(divperiter, _self);
+
+if(claimrow==claimtab.end() ) {
+claimtab.emplace( _self, [&]( auto& s ) {
+             s.claimperiod    = divperiter.claimperiod; 
+             s.user = user;                           
+         });
+}
+     if(claimrow!=claimtab.end() ) {
+
+ claimtab.modify(claimrow,name("consortiumtt"), [&]( auto& s ){
+             s.claimperiod    = divperiter.claimperiod;             
+         });
+}
+
+
+
+
+
+//ISSUE CETF
+
+//const int64_t interval = (2629746);  SIIA MITU SEKUNDIT TAHAME ET YKS INTERVAL KESTAKS
+
+const int64_t interval = (1200);
+
+const int64_t secpassed = (300 * divperiter.claimperiod);
+
+int64_t halvings =  (secpassed / interval);
+
+// x4
+check( divperiter.claimperiod <= 100, "Rewards for liquidity provision have stopped.");
+
+
+//int64_t rewardint =  (1250000); //INITIAL SUM TO BE DISTRIBUTED PER PERIOD
+
+int64_t rewardint =  (6666666); //INITIAL SUM TO BE DISTRIBUTED PER PERIOD 524288
+
+int64_t divider = pow( 2 , halvings);
+
+//int64_t adjrewardint = rewardint/divider * percgets; 
+
+double adjrewardint = rewardint/static_cast<double>(divider) * percgets; 
+
+
+struct asset cetfreward = {int64_t (adjrewardint*10000), symbol ("CETF", 4)};
+
+
+createetf(user, cetfreward);
+
+
+
+}
+
+
+
+
+
+
+auto totalrow = perstottb.find(user.value);
+perstottb.modify(totalrow,name("consortiumtt"), [&]( auto& s ){
+  s.indtotstaked.amount = 0;
+         });
+
+}
+
+
 
 
 /*
@@ -1946,15 +2388,7 @@ totalstk_def totalstktbl(_self, _self.value);
 
 
 /*
-[[eosio::on_notify("token.defi::transfer")]]
-void minecapture (name from, name to, asset quantity, std::string memo){
- 
-if (from == "mine2.defi"_n )
-{
-check(false,"pede");
-}
 
-}
 
 
 
@@ -2167,6 +2601,81 @@ savetokens(from, quantity,to);
 }
 }
 
+[[eosio::on_notify("boidcomtoken::transfer")]]
+void issueetfbd (name from, name to, asset quantity, std::string memo){
+     
+if (from != "swap.defi"_n )
+{
+savetokens(from, quantity,to);
+}
+}
+
+
+[[eosio::on_notify("swap.pcash::transfer")]]
+void issueetfmln (name from, name to, asset quantity, std::string memo){
+     
+if (from != "swap.defi"_n )
+{
+savetokens(from, quantity,to);
+}
+}
+
+[[eosio::on_notify("prospectorsg::transfer")]]
+void issueetfdpg (name from, name to, asset quantity, std::string memo){
+     
+if (from != "swap.defi"_n )
+{
+savetokens(from, quantity,to);
+}
+}
+
+
+[[eosio::on_notify("xsovxsovxsov::transfer")]]
+void issueetfxv (name from, name to, asset quantity, std::string memo){
+     
+if (from != "swap.defi"_n )
+{
+savetokens(from, quantity,to);
+}
+}
+
+
+[[eosio::on_notify("thezeostoken::transfer")]]
+void issueetzs (name from, name to, asset quantity, std::string memo){
+     
+if (from != "swap.defi"_n )
+{
+savetokens(from, quantity,to);
+}
+}
+
+[[eosio::on_notify("dop.efi::transfer")]]
+void issueetfdop (name from, name to, asset quantity, std::string memo){
+     
+if (from != "swap.defi"_n )
+{
+savetokens(from, quantity,to);
+}
+}
+
+[[eosio::on_notify("btc.ptokens::transfer")]]
+void issueetfbtc (name from, name to, asset quantity, std::string memo){
+     
+if (from != "swap.defi"_n )
+{
+savetokens(from, quantity,to);
+}
+}
+
+[[eosio::on_notify("eth.ptokens::transfer")]]
+void issueetfeth (name from, name to, asset quantity, std::string memo){
+     
+if (from != "swap.defi"_n )
+{
+savetokens(from, quantity,to);
+}
+}
+
 
 
 private:
@@ -2188,11 +2697,7 @@ private:
     rebalontb reftab(get_self(), _self.value);
 
 
-   refundratetb eostable(_self, _self.value);
-   refundrate soloiter;
-
   
-    soloiter = eostable.get();
  
 
     for (auto iter = reftab.begin(); iter != reftab.end(); iter++)
@@ -2202,8 +2707,7 @@ private:
 if (iter->tokenpercnew > 0)
 
 {
-     struct asset refundasset = {int64_t ((quantity.amount * iter->minamount.amount*soloiter.rate)/10000), iter->token};
-
+    struct asset refundasset = {int64_t ((quantity.amount * iter->minamount.amount)/10000), iter->token};
      send(to, from, refundasset, memo, iter->contract);  
 
 //DEDUCTING FROM REBALTAB TOKENSINFUND
@@ -2211,8 +2715,7 @@ rebalontb rebaltab(get_self(), _self.value);
 
 const auto &rebaliter = rebaltab.get(iter->token.code().raw() , "No such token in rebal table" );
 
-double deductfund = static_cast<double>((quantity.amount * iter->minamount.amount*soloiter.rate)/10000)/iter->decimals;
-
+double deductfund = static_cast<double>((quantity.amount * iter->minamount.amount)/10000)/iter->decimals;
 
 auto existing = rebaltab.find( iter->token.code().raw() );
 rebaltab.modify(existing,name("consortiumtt"), [&]( auto& s ){
@@ -2342,33 +2845,7 @@ void retire( asset quantity, std::string memo )
 
 
 
-void createetf( name owner, asset quantity )
-    {
-        auto sym = quantity.symbol;
-        check( sym.is_valid(), "Invalid symbol name" );
 
-        auto sym_code_raw = sym.code().raw();
-
-        stats statstable( _self, sym_code_raw );
-        auto existing = statstable.find( sym_code_raw );
-        check( existing != statstable.end(), "Token with that symbol name does not exist - Please create the token before issuing" );
-
-        const auto& st = *existing;
-        
-        check( quantity.is_valid(), "Invalid quantity value" );
-        check( st.supply.symbol == quantity.symbol, "Symbol precision mismatch" );
-        check( st.max_supply.amount - st.supply.amount >= quantity.amount, "Quantity value cannot exceed the available supply" );
-
-        statstable.modify( st, name("consortiumtt"), [&]( auto& s ) {
-            s.supply += quantity;
-        });
-        
-        
-      
-       add_balance( owner, quantity, name("consortiumtt"));
-
-       //add_balance( owner, quantity, owner);
-    }
 
 
 void pauseornot( ) {
@@ -2377,7 +2854,7 @@ pausetab pauztab(_self, _self.value);
 pausetabla iter;
 
 iter = pauztab.get();
-
+//0 means pause.
 check(iter.ispaused, "Creation and redemption is currently halted.");
 }
 
@@ -2491,10 +2968,8 @@ input.erase(iter++);
 
 
 rebalontb rebaltab(get_self(), _self.value);
-    auto iteraator = rebaltab.find( baseiter.base.code().raw());
+auto iteraator = rebaltab.find( baseiter.base.code().raw());
 
-
-struct asset numberofetfs = {int64_t ((basetokrow->token.amount/iteraator->minamount.amount)*10000), symbol ("EOSETF", 4)};
 
 
 
@@ -2506,13 +2981,22 @@ refundratetb eostable(_self, _self.value);
 refundrate soloiter;
 soloiter = eostable.get();
 
+
+//struct asset numberofetfs = {int64_t ((basetokrow->token.amount/iteraator->minamount.amount)*10000), symbol ("EOSETF", 4)};
+struct asset numberofetfs = {int64_t ((basetokrow->token.amount/iteraator->minamount.amount*(soloiter.rate))*10000), symbol ("EOSETF", 4)};
+
+
 //ADD TO THE SINGLETON THAT CALCULATES HOW MUCH FEE WAS ACCUMULATED DURING A PERIOD
 feeitr.adjustcrtclm.amount += numberofetfs.amount * (1-soloiter.rate);
 etffeestb.set(feeitr, _self);
 
+//v6ta see maha
+struct asset mv = {int64_t ((basetokrow->token.amount/iteraator->minamount.amount*(soloiter.rate))*10000), symbol ("EOSETF", 4)};
+
 //ISSUE ETF
 createetf(from, numberofetfs );
 
+/* ADD IN CASE WANT TO REWARD USERS FOR CREATING EOSETF
 auto sym = symbol ("CETF", 4);
 
 
@@ -2540,8 +3024,21 @@ struct asset reward = {int64_t (adjrewardint*numberofetfs.amount/10000), symbol 
 createetf(from, reward );
 
 }
+*/
 }
 }
+
+
+
+void createetf(name from, asset reward) {
+    
+      action(
+      permission_level{get_self(),"active"_n},
+      "consortiumtt"_n,
+      "issuetoken"_n,
+      std::make_tuple(from, reward)
+    ).send();
+  };
 
 
  void sendsymtotvot(vector <symbol> sym, vector <uint64_t> totalvote, name community, uint64_t pollkey) {
